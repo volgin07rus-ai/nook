@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Светлые цвета виджета. Взяты из палитры приложения: та описана в oklch,
+  который виджеты не понимают, поэтому здесь их пересчитанные значения.
+  Тёмный набор лежит рядом, в values-night.
+-->
+<resources>
+    <color name="nook_widget_bg">#EFECE9</color>
+    <color name="nook_widget_fg">#211F1C</color>
+    <color name="nook_widget_fg_2">#575552</color>
+    <color name="nook_widget_fg_3">#686562</color>
+    <color name="nook_widget_line">#DAD7D3</color>
+    <color name="nook_widget_control">#7D7A77</color>
+    <color name="nook_widget_danger">#B33736</color>
+</resources>

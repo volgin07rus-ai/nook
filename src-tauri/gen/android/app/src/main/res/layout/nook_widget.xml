@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Разметка виджета. Только те элементы, которые умеет RemoteViews: у виджета
+  нет доступа к произвольным View, всё рисуется через ограниченный набор.
+
+  Подложка вынесена отдельной картинкой не для красоты: прозрачность фона
+  задаётся из приложения, а менять альфу у background виджету нельзя — зато
+  можно у ImageView. Отсюда и слоёная структура.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/nook_widget_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:src="@drawable/nook_widget_bg" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:id="@+id/nook_widget_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="10dp">
+
+            <!-- Логотип, а не слово: название написано начертанием, не шрифтом. -->
+            <ImageView
+                android:id="@+id/nook_widget_title"
+                android:layout_width="wrap_content"
+                android:layout_height="14dp"
+                android:adjustViewBounds="true"
+                android:scaleType="fitStart"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/nook_wordmark" />
+
+            <!-- Что именно за виджет: их два, и на экране они одинаковые. -->
+            <TextView
+                android:id="@+id/nook_widget_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:shadowColor="#66000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3"
+                android:textColor="@color/nook_widget_fg_2" />
+
+            <TextView
+                android:id="@+id/nook_widget_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:shadowColor="#66000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="3"
+                android:textColor="@color/nook_widget_fg_3" />
+        </LinearLayout>
+
+        <ListView
+            android:id="@+id/nook_widget_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@color/nook_widget_line"
+            android:dividerHeight="1dp" />
+
+        <TextView
+            android:id="@+id/nook_widget_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textSize="13sp"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3"
+            android:textColor="@color/nook_widget_fg_3"
+            android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Подложка виджета. Радиус крупный, как у карточек в приложении. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/nook_widget_bg" />
+    <corners android:radius="24dp" />
+</shape>

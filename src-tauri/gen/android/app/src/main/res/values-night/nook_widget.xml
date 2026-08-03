@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Тёмный набор. См. пояснение в values/nook_widget.xml. -->
+<resources>
+    <color name="nook_widget_bg">#151412</color>
+    <color name="nook_widget_fg">#F3F1F0</color>
+    <color name="nook_widget_fg_2">#BCBAB8</color>
+    <color name="nook_widget_fg_3">#A09E9C</color>
+    <color name="nook_widget_line">#3E3D3B</color>
+    <color name="nook_widget_control">#767473</color>
+    <color name="nook_widget_danger">#E3645E</color>
+</resources>

@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">"Nook"</string>
+    <string name="main_activity_title">"Nook"</string>
+    <string name="nook_widget_label">"Задачи Nook"</string>
+    <string name="nook_widget_description">"Список задач на главном экране"</string>
+    <string name="nook_widget_empty">"Задач нет"</string>
+    <string name="nook_widget_no_data">"Открой Nook, чтобы виджет увидел данные"</string>
+    <string name="nook_widget_label_short">"Задачи"</string>
+    <string name="nook_notes_label">"Записка Nook"</string>
+    <string name="nook_notes_label_short">"Блокнот"</string>
+    <string name="nook_notes_description">"Одна записка на главном экране"</string>
+    <string name="nook_notes_empty">"Записок нет"</string>
+    <string name="nook_notes_gone">"Записка пуста или удалена"</string>
+    <string name="nook_reminder_title">"Напоминание"</string>
+    <string name="nook_channel_reminders">"Напоминания"</string>
+    <string name="nook_channel_reminders_hint">"Срабатывают в то время, которое выставлено у задачи"</string>
+    <string name="nook_config_title">"Какую записку показывать"</string>
+    <string name="nook_config_latest">"Последняя изменённая"</string>
+    <string name="nook_config_latest_hint">"Всегда та записка, которую правил последней"</string>
+    <string name="nook_config_empty">"В блокноте пока пусто. Создай записку в Nook и добавь виджет снова"</string>
+</resources>

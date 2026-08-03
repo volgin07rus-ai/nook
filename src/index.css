@@ -1,0 +1,704 @@
+@import 'tailwindcss';
+
+/*
+ * Scene: someone at a home PC in the evening, the widget sitting on their
+ * wallpaper, dropping in for fifteen seconds to tick two things off.
+ *
+ * Palette: near-monochrome warm greys. Every neutral still carries a trace of
+ * chroma (0.006–0.009) because a zero-chroma grey reads dead next to skin and
+ * photography. Pure #000 and #fff never appear.
+ *
+ * Depth: soft diffusion shadows tinted to the background hue, plus a lightness
+ * step between surfaces. Large radii, pill controls.
+ */
+@theme {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+
+  --color-canvas: oklch(var(--l-canvas) var(--c-n) var(--hue));
+  --color-surface: oklch(var(--l-surface) var(--c-n) var(--hue));
+  --color-panel: oklch(var(--l-panel) var(--c-n) var(--hue));
+  --color-raised: oklch(var(--l-raised) var(--c-n) var(--hue));
+  --color-line: oklch(var(--l-line) var(--c-n) var(--hue));
+  --color-line-soft: oklch(var(--l-line-soft) var(--c-n) var(--hue));
+  /* Outlines of controls, not decoration: has to clear 3:1 on every surface it
+   * can land on, including the hover one. Hairlines are too weak for that. */
+  --color-control: oklch(var(--l-control) var(--c-n) var(--hue));
+
+  --color-fg: oklch(var(--l-fg) var(--c-n) var(--hue));
+  --color-fg-2: oklch(var(--l-fg-2) var(--c-n) var(--hue));
+  --color-fg-3: oklch(var(--l-fg-3) var(--c-n) var(--hue));
+
+  --color-accent: oklch(var(--l-accent) var(--chroma) var(--hue));
+  --color-accent-hi: oklch(calc(var(--l-accent) + var(--accent-lift)) var(--chroma) var(--hue));
+  --color-accent-dim: oklch(var(--l-accent-dim) calc(var(--chroma) * 0.45) var(--hue));
+  --color-on-accent: oklch(var(--l-on-accent) 0.012 var(--hue));
+
+  --color-danger: oklch(var(--l-danger) 0.16 25);
+
+  /* Five steps, ratio ~1.2. Fixed rem, never fluid: this is product UI. */
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.15rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.4rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.55rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.9rem;
+
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  /* Overwritten at runtime from settings. Graphite is a near-neutral accent. */
+  --hue: 70;
+  --chroma: 0.012;
+  /* Fractional on purpose: see the note on .pane-solid. */
+  --rim-width: 1.5px;
+
+  /*
+   * Рельеф мелких контролов. Крупные поверхности берут --shadow-card.
+   *
+   * Две мягкие тени и всё: свет сверху слева, тень снизу справа. Ни заливки,
+   * ни блика по кромке — от них поверхность начинала выглядеть стеклянной, а
+   * нужен просто объём.
+   */
+  --lift:
+    -2px -2px 4px var(--depth-hi),
+    2px 3px 7px var(--depth-lo);
+  --sunk:
+    inset 2px 2px 4px var(--depth-lo),
+    inset -2px -2px 4px var(--depth-hi);
+}
+
+[data-theme='dark'] {
+  /* Chroma stays non-zero so the greys are not lifeless, but it is low enough
+   * that the surfaces read as near-black rather than warm brown. */
+  --c-n: 0.003;
+  --l-canvas: 19%;
+  --l-surface: 24%;
+  --l-panel: 27%;
+  /* Hover used to jump to 32%, which washed the rows out and swallowed the
+   * checkbox rings. A smaller step still reads as "this row is under you". */
+  --l-raised: 28%;
+  --l-line: 36%;
+  --l-line-soft: 30%;
+  --l-control: 56%;
+  --l-fg: 96%;
+  --l-fg-2: 79%;
+  /* 70% is the floor that keeps muted text at 4.5:1 on the raised surface,
+   * which is the weakest pairing once the dark theme was lightened. */
+  --l-fg-3: 70%;
+  --l-accent-dim: 33%;
+  --l-danger: 66%;
+  --accent-lift: 5%;
+  /* Свет сверху слева, тень снизу справа — см. блок «Глубина» ниже. */
+  --depth-hi: oklch(100% 0 0 / 0.06);
+  --depth-lo: oklch(0% 0 0 / 0.55);
+  /*
+   * Подложка поля — на три ступени светлее карточки под ним.
+   *
+   * Тут вся граница и держится. В тёмной теме иначе никак: WCAG считает
+   * контраст с добавкой 0.05, и на почти чёрном фоне это упирается в потолок —
+   * даже чистый чёрный против карточки даёт всего 1.44, а 3:1 достижимо только
+   * чем-то откровенно светлым, то есть той самой линией, от которой мы уходим.
+   * Так что здесь работает ступенька по светлоте, а не измеримый контраст.
+   */
+  --field-fill: oklch(33% var(--c-n) var(--hue));
+  /* Мягкая тень сверху и слабый отсвет снизу. Ноль резких линий: и та, и
+   * другая размыты, поэтому кромка читается как край впадины, а не как рамка. */
+  --groove:
+    inset 0 2px 3px oklch(0% 0 0 / 0.45),
+    inset 0 -1px 2px oklch(100% 0 0 / 0.12);
+  --shadow-card:
+    -3px -3px 7px var(--depth-hi),
+    5px 8px 18px var(--depth-lo);
+  --shadow-lift:
+    -3px -3px 9px var(--depth-hi),
+    9px 14px 30px var(--depth-lo);
+  --glass-edge: oklch(100% 0 0 / 0.22);
+  --glass-sheen: oklch(100% 0 0 / 0.1);
+  --glass-text-shadow: 0 1px 3px oklch(0% 0 0 / 0.6);
+  /* A rim, not a shadow: on a dark wallpaper a dark shadow is invisible, so
+   * the edge has to contrast with the window itself rather than the backdrop. */
+  --window-edge: oklch(100% 0 0 / 0.22);
+  --window-sheen: oklch(100% 0 0 / 0.1);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --c-n: 0.006;
+  --l-canvas: 94.5%;
+  --l-surface: 99%;
+  --l-panel: 97%;
+  --l-raised: 94%;
+  --l-line: 88%;
+  --l-line-soft: 92%;
+  --l-control: 58%;
+  --l-fg: 24%;
+  --l-fg-2: 45%;
+  /* 51% is the floor that keeps muted text at 4.5:1 against the canvas, which
+   * is the weakest pairing in this theme (subtitles and eyebrows sit on it). */
+  --l-fg-3: 51%;
+  --l-accent-dim: 91%;
+  --l-danger: 52%;
+  --accent-lift: -5%;
+  --depth-hi: oklch(100% 0 0 / 0.95);
+  --depth-lo: oklch(58% 0.015 var(--hue) / 0.28);
+  /*
+   * В светлой теме потолка нет: тень на светлом фоне набирает контраст сколько
+   * нужно. Поэтому здесь резкая линия не понадобилась вовсе — граница держится
+   * на размытой тени сверху, и её пик как раз и меряется.
+   */
+  --field-fill: oklch(95.5% var(--c-n) var(--hue));
+  --groove:
+    inset 0 2px 3px oklch(38% 0.015 var(--hue) / 0.68),
+    inset 0 -1px 2px oklch(100% 0 0 / 0.9);
+  /* В светлой теме гравировка настоящая: тёмный текст со светом снизу. */
+  --shadow-card:
+    -3px -3px 7px var(--depth-hi),
+    4px 7px 16px var(--depth-lo);
+  --shadow-lift:
+    -4px -4px 10px var(--depth-hi),
+    8px 12px 26px var(--depth-lo);
+  --glass-edge: oklch(0% 0 0 / 0.24);
+  --glass-sheen: oklch(100% 0 0 / 0.5);
+  --glass-text-shadow: 0 1px 3px oklch(100% 0 0 / 0.7);
+  --window-edge: oklch(0% 0 0 / 0.24);
+  --window-sheen: oklch(100% 0 0 / 0.6);
+  color-scheme: light;
+}
+
+/*
+ * These live in @layer base on purpose. Unlayered rules beat every layered one
+ * regardless of specificity, so an unlayered `button { color: inherit }` would
+ * silently outrank every Tailwind text-colour utility and leave dark text on
+ * dark buttons. Base sits below utilities, which is what we want.
+ */
+@layer base {
+  * {
+    min-width: 0;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    /* The window is transparent so the CSS can round its corners. */
+    background: transparent;
+    color: var(--color-fg);
+    /* Set at runtime from settings; the theme value is the fallback. */
+    font-family: var(--font-ui, var(--font-sans));
+    font-size: var(--text-md);
+    /* Light-on-dark loses perceived weight; buy it back with tracking, not bold. */
+    letter-spacing: 0.01em;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  button,
+  select {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    cursor: default;
+  }
+}
+
+/* Numbers only line up if they are tabular. Counts, dates, percentages. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer components {
+  /* A floating tile. Siblings only: a card inside a card is always wrong. */
+  .card {
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-flat {
+    background: var(--color-panel);
+    border-radius: var(--radius-lg);
+  }
+
+  /*
+   * Glass lives in the widget alone, where translucency is functional: it sits
+   * on the wallpaper and must not black it out. No Windows backdrop effect is
+   * involved, just window transparency and this alpha, so what shows through is
+   * the wallpaper itself rather than a blurred tint.
+   *
+   * The wallpaper underneath is arbitrary, so the text carries its own shadow:
+   * that is what keeps it readable at high transparency over a busy photo.
+   */
+  .pane-glass {
+    background: color-mix(in oklch, var(--color-canvas) var(--glass-opacity, 66%), transparent);
+    border: none;
+    text-shadow: var(--glass-text-shadow);
+  }
+
+  /*
+   * No drop shadow, by two separate constraints.
+   *
+   * The native one is off because Windows draws it around the real window
+   * rectangle, which DWM rounds at about 8px, while the panel is rounded far
+   * more: the two arcs did not line up and read as a double corner. A CSS one
+   * cannot paint outside its own window, so it would need the panel inset
+   * inside a transparent margin, and that pushes the resize border away from
+   * the visible edge.
+   *
+   * The rim below does the separating instead, and it works better anyway: a
+   * dark shadow is invisible on a dark wallpaper, while a rim contrasts with
+   * the window rather than with whatever is behind it.
+   */
+  /*
+   * The rim is an inset shadow on an overlay, not a border and not a shadow on
+   * the panel itself.
+   *
+   * Not a border: at 100% display scale Chromium floors a fractional
+   * border-width to whole device pixels, so 1.5px would quietly render as 1px.
+   * Shadow spread keeps the fraction and antialiases it.
+   *
+   * Not on the panel: an inset shadow paints under the element's own children,
+   * and the sidebar and cards are opaque right up to the edge, so it survived
+   * only along the bottom. This layer sits above everything and takes no
+   * pointer events.
+   */
+  .pane-solid {
+    background: var(--color-canvas);
+  }
+
+  .pane-solid::after,
+  .pane-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .pane-solid::after {
+    box-shadow:
+      inset 0 0 0 var(--rim-width) var(--window-edge),
+      inset 0 1px 0 0 var(--window-sheen);
+  }
+
+  .pane-glass::after {
+    box-shadow:
+      inset 0 0 0 var(--rim-width) var(--glass-edge),
+      inset 0 1px 0 0 var(--glass-sheen);
+  }
+
+  /*
+   * Глубина.
+   *
+   * Свет в интерфейсе падает сверху слева — одинаково для всего, иначе объём
+   * рассыпается на несвязанные кляксы. Отсюда пара теней у каждой поверхности:
+   * светлая с той стороны, откуда светит, тёмная с противоположной.
+   *
+   * Смысл у выпуклого и вдавленного разный, и он не декоративный. Выпуклое
+   * можно нажать: кнопки, переключатели, карточки. Вдавленное — это углубление,
+   * куда что-то кладут или что-то уже выбрано: поля ввода, включённые фильтры,
+   * отмеченные галочки. Поэтому нажатие переворачивает состояние — кнопка
+   * уходит внутрь ровно на то время, пока её держат.
+   *
+   * Тени не несут никакой информации в одиночку: границы контролов остаются на
+   * цветном токене, а текст — на своём. Мягкий рельеф славится тем, что топит
+   * контраст, и здесь он ничего не заменяет, а только добавляется сверху.
+   */
+  .raise {
+    box-shadow: var(--lift);
+  }
+  .raise:active:not(:disabled),
+  .raise[aria-pressed='true'],
+  .sink {
+    box-shadow: var(--sunk);
+  }
+
+  /*
+   * One input shape for the whole app.
+   *
+   * The border is drawn at rest, not only on hover. Hiding it until the
+   * pointer arrives works on a desktop and fails completely on a phone, where
+   * there is no hover at all: every select and every input read as plain text
+   * on a card, with nothing to say they could be tapped.
+   *
+   * Вдавленное, а не выпуклое: поле — это углубление, в которое пишут.
+   *
+   * Никаких линий по кромке: и обводка, и одиночная резкая линия читались как
+   * рамка, наклеенная поверх. Впадину делают собственная подложка, чуть
+   * отличная от фона, и мягкая тень под верхним краем — этого хватает, чтобы
+   * поле нашлось, и не хватает, чтобы оно выглядело обведённым.
+   */
+  .field {
+    background: var(--field-fill);
+    /* Прозрачная, но существующая: держит геометрию, чтобы фокус не сдвигал
+     * содержимое на пиксель, и красится акцентом при фокусе. */
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    box-shadow: var(--groove);
+    transition:
+      border-color 160ms var(--ease-out-quart),
+      background-color 160ms var(--ease-out-quart);
+  }
+  .field:hover {
+    border-color: var(--color-fg-3);
+  }
+  .field:focus-within {
+    border-color: var(--color-accent);
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Tactile press feedback. */
+  .press {
+    transition: transform 120ms var(--ease-out-quart);
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Primary action: a solid pill, the way the reference does it. */
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border-radius: 999px;
+    font-weight: 500;
+    box-shadow: var(--lift);
+    transition:
+      background-color 160ms var(--ease-out-quart),
+      box-shadow 160ms var(--ease-out-quart);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-hi);
+  }
+  .btn-primary:active:not(:disabled),
+  .btn-quiet:active:not(:disabled) {
+    box-shadow: var(--sunk);
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    box-shadow: none;
+  }
+
+  .btn-quiet {
+    background: var(--color-panel);
+    color: var(--color-fg-2);
+    border-radius: 999px;
+    box-shadow: var(--lift);
+    transition:
+      background-color 160ms var(--ease-out-quart),
+      box-shadow 160ms var(--ease-out-quart),
+      color 160ms var(--ease-out-quart);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--color-raised);
+    color: var(--color-fg);
+  }
+
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Native thin scrollbars: standard properties, no custom track redraw. */
+  .scroll-y {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+  }
+}
+
+/* Motion conveys state and nothing else. 140–220 ms, ease-out, no bounce. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.enter {
+  animation: fade-up 180ms var(--ease-out-quart) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.toast-in {
+  animation: toast-in 200ms var(--ease-out-quart) both;
+}
+
+@keyframes skeleton {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton {
+  background: var(--color-raised);
+  border-radius: var(--radius-sm);
+  animation: skeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Note body.
+ *
+ * The editing surface is a contenteditable, so these rules style what the
+ * browser's own formatting commands produce. Three block levels and the inline
+ * marks, nothing else — the sanitiser in lib/richtext.ts drops anything that
+ * has no rule here.
+ */
+.note-body p {
+  margin: 0 0 0.35em;
+}
+.note-body p:last-child {
+  margin-bottom: 0;
+}
+.note-body h2 {
+  margin: 0.5em 0 0.25em;
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: 600;
+}
+.note-body h2:first-child {
+  margin-top: 0;
+}
+.note-body p.sm {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  /* Still the reading token, not the muted one: small is a size, not a demotion,
+   * and fg-3 at this size would drop under 4.5:1. */
+  color: var(--color-fg-2);
+}
+.note-body strong,
+.note-body b {
+  font-weight: 650;
+}
+.note-body u {
+  text-underline-offset: 0.18em;
+}
+
+/* list-style must be stated: Tailwind's base layer strips markers from every
+ * list, so without this the text indents and the bullet never appears. */
+.note-body ul {
+  list-style: disc;
+  margin: 0 0 0.35em;
+  padding-left: 1.4em;
+}
+.note-body ol {
+  list-style: decimal;
+  margin: 0 0 0.35em;
+  padding-left: 1.4em;
+}
+.note-body li::marker {
+  color: var(--color-fg-3);
+}
+.note-body li {
+  margin: 0.15em 0;
+}
+
+/*
+ * Checklist.
+ *
+ * The circle is a ::before rather than a real checkbox: any element inside a
+ * contenteditable becomes something the caret can land in and the user can
+ * delete. Drawn this way it cannot be typed into or removed by accident, and
+ * the tick is a click in the left gutter — which is why the padding below is
+ * also the hit area the component measures against.
+ */
+.note-body ul.todo {
+  list-style: none;
+  /* Everything here is in em, so the circle and the gap it sits in grow with
+   * the text: set a line to 24px and its circle is a 24px-sized circle. */
+  padding-left: 2.4em;
+}
+.note-body ul.todo li {
+  position: relative;
+}
+.note-body ul.todo li::before {
+  content: '';
+  position: absolute;
+  left: -1.9em;
+  /*
+   * Centred on the first line box, not offset from the top of the row.
+   *
+   * A fixed offset only lines up at one line height: widen the spacing and the
+   * text slides down inside its taller line box while the circle stays put, so
+   * every circle drifts by a different amount. The line box is the line height
+   * times the font size, so half the leftover is where the circle belongs.
+   */
+  top: calc((var(--note-line, 1.6) * 1em - 1.25em) / 2);
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  /* The control token, not the divider one: this is an outline you have to
+   * find and hit, and a hairline is too weak against the card. */
+  border: 1.5px solid var(--color-control);
+  box-sizing: border-box;
+  transition:
+    background-color 150ms var(--ease-out-quart),
+    border-color 150ms var(--ease-out-quart);
+}
+.note-body ul.todo li[data-done='1']::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.note-body ul.todo li[data-done='1'] {
+  color: var(--color-fg-3);
+  text-decoration: line-through;
+}
+
+/* Placeholder. :empty will not do: the browser leaves a <br> behind the moment
+ * you type and delete, so emptiness is tracked by the component instead. */
+.note-body[data-empty='true']::before {
+  content: attr(data-placeholder);
+  color: var(--color-fg-3);
+  pointer-events: none;
+}
+
+/*
+ * Touch.
+ *
+ * Half the affordances in this app are revealed on hover — delete buttons,
+ * drag handles, the subtask toggle on an empty task. A touch screen has no
+ * hover, so on a phone those controls would be invisible and unreachable.
+ * Showing them all the time is the honest fix.
+ *
+ * Unlayered on purpose: Tailwind utilities live in @layer utilities, and an
+ * unlayered rule outranks every layered one, so this beats the opacity-0 the
+ * markup asks for without needing !important.
+ */
+@media (pointer: coarse) {
+  [class*='group-hover:opacity-100'] {
+    opacity: 1;
+  }
+  /* Reversed meaning: the count hides on hover to make room for the row
+   * buttons. With no hover it should simply stay. */
+  [class*='group-hover:invisible'] {
+    visibility: visible;
+  }
+}
+
+/*
+ * The lamp over the active tab.
+ *
+ * A bar of light at the top edge and the beam it throws down over the icon.
+ * Drawn rather than animated: the movement between tabs is a shared layout
+ * animation in the component, so this file only has to say what the light
+ * looks like once, and the same element slides from tab to tab wearing it.
+ *
+ * The beam is a clipped gradient, not a blur. A blur that reads at all on a
+ * light theme is heavy enough to grey out the label underneath it on a dark
+ * one; a trapezoid fading to nothing keeps the same shape in both.
+ */
+.tab-lamp::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2.25rem;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 12px 1px var(--color-accent);
+}
+
+.tab-lamp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Exactly the width of the tab, so nothing has to be clipped away: the beam
+   * reaches the edges at the bottom and stops there. The top of the trapezoid
+   * matches the bar above it, so the light leaves the slot rather than
+   * appearing out of thin air beside it. */
+  clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, var(--color-accent), transparent 78%);
+  opacity: 0.24;
+}
+
+/* The lit icon, so the beam has something to land on. */
+.tab-glow {
+  filter: drop-shadow(0 0 6px color-mix(in oklch, var(--color-accent) 55%, transparent));
+}
+
+/*
+ * Phone. The window belongs to the system: no rounding, no rim, no shadow, and
+ * the app fills the screen edge to edge.
+ */
+html.phone {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.phone body {
+  background: var(--color-canvas);
+  /* Android flashes a grey box over whatever you touch. */
+  -webkit-tap-highlight-color: transparent;
+  /* No rubber-band bounce dragging the whole app around. */
+  overscroll-behavior: none;
+}
+
+html.phone .pane-solid::after {
+  content: none;
+}
+
+html.phone .scroll-y {
+  /* Momentum scrolling, and no visible scrollbar taking up width. */
+  scrollbar-width: none;
+}
+
+/* Outside Tauri there is no desktop behind the window; stand one in. */
+html.in-browser body {
+  background: var(--color-canvas);
+  padding: 20px;
+}
+html.in-browser body,
+html.in-browser #root {
+  height: auto;
+}
+html.in-browser #root {
+  height: calc(100vh - 40px);
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Значок в строке состояния.
+
+  Система заливает его одним цветом и показывает размером с букву, поэтому это
+  не марка Nook целиком, а её главная форма — арка «n». Тонкие кольца из полной
+  марки на такой высоте слипаются в пятно.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6,19 L6,12 A6,6 0 0 1 18,12 L18,19"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

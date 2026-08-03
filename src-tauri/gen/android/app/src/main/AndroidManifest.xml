@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Уведомления. С Android 13 показать их без этого разрешения нельзя: система
+      молча выбрасывает каждое, ошибки при этом не возникает — приложение думает,
+      что всё отправлено. Именно поэтому напоминания не приходили вовсе.
+      Одного объявления мало, разрешение ещё спрашивается при запуске.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Точное время срабатывания. SCHEDULE_EXACT_ALARM — для Android 12,
+      USE_EXACT_ALARM — с Android 13 и выдаётся сразу, потому что напоминания
+      здесь и есть смысл функции. Без них будильник тоже сработает, но система
+      вправе сдвинуть его на удобный ей момент.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- Перезагрузка стирает все заведённые будильники, их нужно расставить заново. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- AndroidTV support -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.nook"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- AndroidTV support -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Виджет на главный экран. exported="false" здесь верно: система
+          доставляет виджетам обновления по своему каналу, а само приложение
+          шлёт явный intent внутри себя.
+        -->
+        <receiver
+            android:name=".NookWidget"
+            android:label="@string/nook_widget_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nook_widget_info" />
+        </receiver>
+
+        <!--
+          Спрашивает, какую записку показывать. Запускает её система при
+          добавлении виджета, поэтому exported обязателен.
+        -->
+        <activity
+            android:name=".NookNotesConfigActivity"
+            android:label="@string/nook_config_title"
+            android:theme="@style/Theme.nook"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".NookNotesWidget"
+            android:label="@string/nook_notes_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nook_notes_widget_info" />
+        </receiver>
+
+        <!-- Подают строки в списки виджетов. Права привязки — только у системы. -->
+        <service
+            android:name=".NookWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <service
+            android:name=".NookNotesWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <!--
+          Принимает срабатывание будильника и показывает уведомление. Работает
+          и при закрытом приложении: получатель поднимает система, держать для
+          этого процесс не нужно.
+
+          exported="true" — из-за фильтра ниже: перезагрузку и обновление
+          рассылает система, а до невидимого снаружи получателя её рассылка не
+          доходит. Подделать их нельзя, обе рассылки защищённые и доступны
+          только системе. Само срабатывание будильника приходит явным intent'ом
+          изнутри приложения и в фильтре не нуждается.
+        -->
+        <receiver
+            android:name=".NookReminderReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+          android:name="androidx.core.content.FileProvider"
+          android:authorities="${applicationId}.fileprovider"
+          android:exported="false"
+          android:grantUriPermissions="true">
+          <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Кружок в строке задачи. Здесь он не кнопка, а метка: виджет только
+  показывает. Толщина и цвет подобраны так, чтобы кружок было видно на фоне
+  подложки — тонкая линия делителя для этого слишком слаба.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@android:color/transparent" />
+    <stroke android:width="1.5dp" android:color="@color/nook_widget_control" />
+    <size android:width="16dp" android:height="16dp" />
+</shape>
