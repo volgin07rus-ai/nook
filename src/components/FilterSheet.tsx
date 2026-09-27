@@ -166,7 +166,7 @@ function Row({
       onClick={onClick}
       aria-current={active ? 'true' : undefined}
       className={`focus-ring press flex h-12 items-center gap-3 rounded-lg px-3 text-left transition-colors duration-150 ${
-        active ? 'sink bg-accent-dim text-fg' : 'text-fg-2'
+        active ? 'bg-accent-dim text-fg' : 'text-fg-2'
       }`}
     >
       <span className={`grid w-5 shrink-0 place-items-center ${active ? 'text-accent' : 'text-fg-3'}`}>

@@ -20,6 +20,14 @@ export interface Task {
   completedAt: number | null
   /** 'YYYY-MM-DD', null when the task has no deadline */
   due: string | null
+  /**
+   * 'HH:MM' — время внутри дня, если задача стоит на конкретный час.
+   *
+   * Отдельно от remindAt намеренно: напоминание — это когда толкнуть, а это —
+   * когда оно стоит в расписании. У встречи в 14:00 с напоминанием за час два
+   * разных времени, и одним полем их не выразить.
+   */
+  dueTime: string | null
   priority: Priority
   /** null means "Без категории" */
   categoryId: string | null
@@ -30,6 +38,8 @@ export interface Task {
   remindAt: number | null
   /** true once the notification has fired, so it never repeats */
   reminded: boolean
+  /** ms epoch последней правки — по нему сходятся две копии, см. lib/sync.ts */
+  updatedAt: number
 }
 
 export interface Category {
@@ -38,6 +48,7 @@ export interface Category {
   color: string
   /** Pinned categories are moved to the top of the list and marked. */
   pinned: boolean
+  updatedAt: number
 }
 
 /**
@@ -143,6 +154,7 @@ export interface Film {
   createdAt: number
   /** ms epoch when it was ticked off, null while it is still on the list */
   watchedAt: number | null
+  updatedAt: number
 }
 
 /** Ratings are quoted from elsewhere, so they keep that scale exactly. */
@@ -157,15 +169,51 @@ export function clampRating(value: unknown): number | null {
   return rounded
 }
 
+/**
+ * Привычка — то, что делают каждый день, а не один раз к сроку.
+ *
+ * Не задача с повтором: повторяющаяся задача на каждый день рождает новую
+ * копию и закрывает старую, а у привычки одна запись на всю жизнь и история
+ * отметок внутри. Именно история здесь и ценна — серия, процент за месяц,
+ * сетка дней, — и по разрозненным копиям задач её не собрать.
+ */
+export interface Habit {
+  id: string
+  name: string
+  color: string
+  /** Дни, когда отмечено: 'YYYY-MM-DD', без повторов, по возрастанию. */
+  days: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Запись о том, что было удалено.
+ *
+ * Без неё синхронизация не работает вовсе: удаление на телефоне выглядит на
+ * ноутбуке ровно как «на телефоне этой задачи ещё нет», и она приезжает
+ * обратно. Могила помнит, что именно и когда убрали.
+ */
+export interface Grave {
+  id: string
+  at: number
+}
+
 export interface AppData {
-  version: 7
+  version: 10
   tasks: Task[]
   categories: Category[]
   /** Free-form notes, kept separate from the task list. */
   notes: Note[]
   /** The watchlist. Its own collection, not a category of tasks. */
   films: Film[]
+  /** Ежедневные привычки с историей отметок. */
+  habits: Habit[]
   settings: Settings
+  /** Что удалено и когда. Чистится от записей старше трёх месяцев. */
+  graveyard: Grave[]
+  /** Когда последний раз меняли настройки: они сходятся целиком, не по полям. */
+  settingsAt: number
 }
 
 export const PRIORITY_LABEL: Record<Priority, string> = {
@@ -239,13 +287,16 @@ export function defaultSettings(): Settings {
 
 export function defaultData(): AppData {
   return {
-    version: 7,
+    version: 10,
     tasks: [],
     films: [],
+    habits: [],
+    graveyard: [],
+    settingsAt: 0,
     categories: [
-      { id: createId(), name: 'Личное', color: CATEGORY_PALETTE[1], pinned: false },
-      { id: createId(), name: 'Работа', color: CATEGORY_PALETTE[4], pinned: false },
-      { id: createId(), name: 'Учёба', color: CATEGORY_PALETTE[3], pinned: false },
+      { id: createId(), name: 'Личное', color: CATEGORY_PALETTE[1], pinned: false, updatedAt: 0 },
+      { id: createId(), name: 'Работа', color: CATEGORY_PALETTE[4], pinned: false, updatedAt: 0 },
+      { id: createId(), name: 'Учёба', color: CATEGORY_PALETTE[3], pinned: false, updatedAt: 0 },
     ],
     notes: [],
     settings: defaultSettings(),
@@ -272,6 +323,35 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
   return typeof value === 'string' && (allowed as readonly string[]).includes(value)
     ? (value as T)
     : fallback
+}
+
+/**
+ * Метка времени из файла.
+ *
+ * Запасное значение важно: файлы, написанные до появления синхронизации,
+ * меток не имеют. Взять ноль было бы неверно — при первом же слиянии всё
+ * старое проиграло бы всему новому. Поэтому берётся дата создания.
+ */
+function asStamp(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+/** Только 'ЧЧ:ММ' в пределах суток; всё прочее читается как «времени нет». */
+function asTime(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const m = /^(\d{2}):(\d{2})$/.exec(value.trim())
+  if (!m) return null
+  if (Number(m[1]) > 23 || Number(m[2]) > 59) return null
+  return m[1] + ':' + m[2]
+}
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/
+
+/** Отметки привычки: только даты нужного вида, без повторов, по порядку. */
+function asDays(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const keys = raw.filter((d): d is string => typeof d === 'string' && DAY_KEY.test(d))
+  return [...new Set(keys)].sort()
 }
 
 function asText(value: unknown, fallback: string): string {
@@ -308,7 +388,7 @@ export function normalize(raw: unknown): AppData {
   const categories = Array.isArray(data.categories)
     ? data.categories
         .filter((c): c is Category => !!c && typeof c.id === 'string')
-        .map((c) => ({ ...c, pinned: !!c.pinned }))
+        .map((c) => ({ ...c, pinned: !!c.pinned, updatedAt: asStamp(c.updatedAt, 0) }))
     : base.categories
 
   const known = new Set(categories.map((c) => c.id))
@@ -322,6 +402,7 @@ export function normalize(raw: unknown): AppData {
           createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
           completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
           due: typeof t.due === 'string' ? t.due : null,
+          dueTime: asTime(t.dueTime),
           priority: PRIORITIES.includes(t.priority) ? t.priority : 'normal',
           // Drop references to categories that no longer exist.
           categoryId: t.categoryId && known.has(t.categoryId) ? t.categoryId : null,
@@ -330,6 +411,7 @@ export function normalize(raw: unknown): AppData {
           repeat: REPEATS.includes(t.repeat) ? t.repeat : 'none',
           remindAt: typeof t.remindAt === 'number' ? t.remindAt : null,
           reminded: !!t.reminded,
+          updatedAt: asStamp(t.updatedAt, t.createdAt),
         }))
     : []
 
@@ -396,8 +478,41 @@ export function normalize(raw: unknown): AppData {
           watched: !!f.watched,
           createdAt: typeof f.createdAt === 'number' ? f.createdAt : Date.now(),
           watchedAt: typeof f.watchedAt === 'number' ? f.watchedAt : null,
+          updatedAt: asStamp(f.updatedAt, f.createdAt),
         }))
     : []
 
-  return { version: 7, tasks, categories, notes, films, settings }
+  const habits: Habit[] = Array.isArray(data.habits)
+    ? data.habits
+        .filter((h): h is Habit => !!h && typeof h.name === 'string' && h.name.trim() !== '')
+        .map((h) => {
+          const createdAt = typeof h.createdAt === 'number' ? h.createdAt : Date.now()
+          return {
+            id: typeof h.id === 'string' ? h.id : createId(),
+            name: h.name.trim().slice(0, 80),
+            color: typeof h.color === 'string' && h.color.trim() ? h.color : CATEGORY_PALETTE[0],
+            days: asDays(h.days),
+            createdAt,
+            updatedAt: asStamp(h.updatedAt, createdAt),
+          }
+        })
+    : []
+
+  const graveyard: Grave[] = Array.isArray(data.graveyard)
+    ? data.graveyard
+        .filter((g): g is Grave => !!g && typeof g.id === 'string' && typeof g.at === 'number')
+        .map((g) => ({ id: g.id, at: g.at }))
+    : []
+
+  return {
+    version: 10,
+    tasks,
+    categories,
+    notes,
+    films,
+    habits,
+    settings,
+    graveyard,
+    settingsAt: asStamp((data as { settingsAt?: unknown }).settingsAt, 0),
+  }
 }

@@ -5,6 +5,7 @@ import { PRIORITY_LABEL, PRIORITY_OPTIONS, REPEAT_LABEL, REPEAT_OPTIONS } from '
 import { Select, type SelectOption } from './Select'
 import { DateTimeField } from './DateTimeField'
 import { formatDateTime, formatDue, fromLocalInput, isOverdue, isToday, toLocalInput } from '../lib/date'
+import { parseTime } from '../lib/calendar'
 import {
   addSubtask,
   deleteSubtask,
@@ -97,6 +98,9 @@ export function TaskItem({
                 >
                   <CalendarBlankIcon size={12} />
                   {formatDue(task.due)}
+                  {/* Час, если он выставлен: в календаре задача стоит на нём,
+                      и в общем списке это должно быть видно так же. */}
+                  {task.dueTime && <span className="tnum">{task.dueTime}</span>}
                 </span>
               )}
 
@@ -352,6 +356,7 @@ function TaskEditor({
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes)
   const [due, setDue] = useState(task.due ?? '')
+  const [dueTime, setDueTime] = useState(task.dueTime ?? '')
   const [priority, setPriority] = useState<Priority>(task.priority)
   const [categoryId, setCategoryId] = useState(task.categoryId ?? '')
   const [repeat, setRepeat] = useState<Repeat>(task.repeat)
@@ -371,6 +376,9 @@ function TaskEditor({
         title: trimmed,
         notes: notes.trim(),
         due: due || null,
+        // Час без даты повис бы ни на чём: календарь ставит задачу в день,
+        // а уже внутри дня — в строку.
+        dueTime: due ? parseTime(dueTime) : null,
         priority,
         categoryId: categoryId || null,
         repeat,
@@ -418,6 +426,17 @@ function TaskEditor({
             value={due}
             onChange={(e) => setDue(e.target.value)}
             className="field w-full px-2.5 py-2 text-sm text-fg-2 outline-none"
+          />
+        </Labelled>
+        <Labelled label="Время">
+          <input
+            value={dueTime}
+            onChange={(e) => setDueTime(e.target.value.replace(/[^\d:.]/g, '').slice(0, 5))}
+            inputMode="numeric"
+            placeholder="--:--"
+            disabled={!due}
+            aria-label="Время"
+            className="field tnum w-full px-2.5 py-2 text-center text-sm text-fg-2 outline-none placeholder:text-fg-3 disabled:opacity-40"
           />
         </Labelled>
         <Labelled label="Приоритет">

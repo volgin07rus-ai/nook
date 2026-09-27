@@ -87,6 +87,19 @@
                 android:resource="@xml/nook_notes_widget_info" />
         </receiver>
 
+        <!-- Расписание на сегодня. -->
+        <receiver
+            android:name=".NookCalendarWidget"
+            android:label="@string/nook_calendar_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nook_calendar_widget_info" />
+        </receiver>
+
         <!-- Подают строки в списки виджетов. Права привязки — только у системы. -->
         <service
             android:name=".NookWidgetService"
@@ -95,6 +108,11 @@
 
         <service
             android:name=".NookNotesWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <service
+            android:name=".NookCalendarWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
 

@@ -31,6 +31,8 @@ const ALLOWED_TAGS = new Set([
   'UL',
   'OL',
   'LI',
+  // Картинка хранится именем файла, а не адресом: см. keptAttributes.
+  'IMG',
 ])
 
 /**
@@ -42,6 +44,9 @@ const ALLOWED_TAGS = new Set([
 const FONT_SIZE = /^font-size:\s*(\d{1,2})px;?$/
 const MIN_SIZE = 8
 const MAX_SIZE = 64
+
+/** То же правило, что в lib/images.ts: имя файла, а не путь. */
+const IMAGE_NAME = /^[A-Za-z0-9.-]{1,64}$/
 
 function keptAttributes(el: Element): Array<[string, string]> {
   const kept: Array<[string, string]> = []
@@ -60,6 +65,20 @@ function keptAttributes(el: Element): Array<[string, string]> {
   if (el.tagName === 'UL' && el.classList.contains('todo')) kept.push(['class', 'todo'])
 
   if (el.tagName === 'LI' && el.getAttribute('data-done') === '1') kept.push(['data-done', '1'])
+
+  /*
+   * У картинки остаётся имя файла и ничего больше.
+   *
+   * src сюда не попадает намеренно — ни настоящий, ни чужой. В сохранённой
+   * записке нет ни одного адреса, значит вставленная извне разметка не
+   * может заставить приложение сходить куда-либо: ни на чужой сервер, ни
+   * по javascript:. Настоящий адрес подставляется только в редакторе, перед
+   * показом, и только для файлов из своей папки — см. lib/images.ts.
+   */
+  if (el.tagName === 'IMG') {
+    const name = el.getAttribute('data-nook')?.trim() ?? ''
+    if (IMAGE_NAME.test(name) && !name.includes('..')) kept.push(['data-nook', name])
+  }
 
   return kept
 }

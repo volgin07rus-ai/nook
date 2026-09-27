@@ -11,6 +11,8 @@
     <string name="nook_notes_description">"Одна записка на главном экране"</string>
     <string name="nook_notes_empty">"Записок нет"</string>
     <string name="nook_notes_gone">"Записка пуста или удалена"</string>
+    <string name="nook_calendar_label">"Календарь Nook"</string>
+    <string name="nook_calendar_description">"Месяц целиком, с отметками в дни, когда что-то назначено"</string>
     <string name="nook_reminder_title">"Напоминание"</string>
     <string name="nook_channel_reminders">"Напоминания"</string>
     <string name="nook_channel_reminders_hint">"Срабатывают в то время, которое выставлено у задачи"</string>
@@ -18,4 +20,11 @@
     <string name="nook_config_latest">"Последняя изменённая"</string>
     <string name="nook_config_latest_hint">"Всегда та записка, которую правил последней"</string>
     <string name="nook_config_empty">"В блокноте пока пусто. Создай записку в Nook и добавь виджет снова"</string>
+    <string name="nook_wd_mon">"пн"</string>
+    <string name="nook_wd_tue">"вт"</string>
+    <string name="nook_wd_wed">"ср"</string>
+    <string name="nook_wd_thu">"чт"</string>
+    <string name="nook_wd_fri">"пт"</string>
+    <string name="nook_wd_sat">"сб"</string>
+    <string name="nook_wd_sun">"вс"</string>
 </resources>

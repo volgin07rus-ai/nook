@@ -158,10 +158,8 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      /* raise + aria-pressed: включённый фильтр вдавливается сам, правилом в
-         таблице стилей, без второго набора классов здесь. */
-      className={`focus-ring press raise shrink-0 rounded-full px-3 py-1.5 text-sm transition-[box-shadow,background-color,color] duration-150 ${
-        active ? 'bg-accent-dim text-fg' : 'bg-panel text-fg-2 hover:text-fg'
+      className={`focus-ring press shrink-0 rounded-full px-3 py-1.5 text-sm transition-colors duration-150 ${
+        active ? 'bg-accent-dim text-fg' : 'bg-fill text-fg-2 hover:bg-fill-hover hover:text-fg'
       }`}
     >
       {label}

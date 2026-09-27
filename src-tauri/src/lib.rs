@@ -193,6 +193,150 @@ fn show_widget(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ------------------------------------------------------ настройки синхрона
+
+/// Адрес репозитория и токен доступа.
+///
+/// Лежит в своём файле, а не в nook.json, и это принципиально: nook.json
+/// уезжает в тот самый репозиторий. Токен внутри него означал бы, что ключ
+/// от хранилища лежит в самом хранилище — и остаётся там в истории коммитов
+/// навсегда, даже если потом его убрать.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SyncConfig {
+    pub owner: String,
+    pub repo: String,
+    pub token: String,
+    /// Отпечаток последней разобранной версии — по нему видно, менялось ли
+    /// удалённое с прошлого раза.
+    pub last_sha: String,
+    pub last_at: i64,
+}
+
+const SYNC_FILE: &str = "sync.json";
+
+fn sync_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join(SYNC_FILE))
+}
+
+#[tauri::command]
+fn read_sync_config(app: tauri::AppHandle) -> Result<SyncConfig, String> {
+    let path = sync_path(&app)?;
+    if !path.exists() {
+        return Ok(SyncConfig::default());
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_sync_config(app: tauri::AppHandle, config: SyncConfig) -> Result<(), String> {
+    let path = sync_path(&app)?;
+    let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    std::fs::write(&path, text).map_err(|e| e.to_string())
+}
+
+// -------------------------------------------------------------- картинки
+
+/// Куда складываются картинки записок.
+///
+/// Отдельными файлами, а не внутри nook.json: фотография весит сотни
+/// килобайт, а хранилище переписывается целиком на каждую правку текста.
+/// Пара снимков в заметке — и каждое нажатие клавиши переписывало бы
+/// мегабайты. Плюс в самом json остаётся только имя файла, и он остаётся
+/// читаемым и переносимым.
+fn images_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("images");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// Имя файла картинки. Только то, что выдаёт save_image: без точек, слешей
+/// и прочего, чем можно было бы выйти из папки.
+fn safe_image_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        && !name.contains("..")
+}
+
+/// Сохраняет картинку и возвращает её имя. Уменьшение и сжатие делает
+/// фронтенд: там уже есть canvas, а тащить сюда декодер jpeg ради этого
+/// значило бы удвоить размер приложения.
+#[tauri::command]
+fn save_image(app: tauri::AppHandle, bytes: Vec<u8>, ext: String) -> Result<String, String> {
+    let ext = match ext.as_str() {
+        "jpg" | "jpeg" => "jpg",
+        "png" => "png",
+        "webp" => "webp",
+        other => return Err(format!("неподдерживаемый формат: {other}")),
+    };
+    if bytes.is_empty() {
+        return Err("пустой файл".into());
+    }
+
+    let name = format!("{}-{}.{ext}", now_ms(), std::process::id());
+    let path = images_dir(&app)?.join(&name);
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(name)
+}
+
+/// Кладёт картинку под уже известным именем.
+///
+/// Нужна синхронизации: имя файла записано внутри записки, и приехавшая с
+/// другого устройства картинка обязана лечь именно под ним, иначе ссылка в
+/// тексте укажет в пустоту.
+#[tauri::command]
+fn save_image_as(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<(), String> {
+    if !safe_image_name(&name) {
+        return Err("недопустимое имя файла".into());
+    }
+    if bytes.is_empty() {
+        return Err("пустой файл".into());
+    }
+    let path = images_dir(&app)?.join(&name);
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())
+}
+
+/// Полный путь к картинке — фронтенд превращает его в ссылку для вебвью.
+#[tauri::command]
+fn image_path(app: tauri::AppHandle, name: String) -> Result<String, String> {
+    if !safe_image_name(&name) {
+        return Err("недопустимое имя файла".into());
+    }
+    let path = images_dir(&app)?.join(&name);
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Удаляет картинки, на которые больше никто не ссылается.
+///
+/// Зовётся приложением со списком имён, которые встречаются в записках.
+/// Держать счётчик ссылок было бы точнее и куда хрупче: любая потерянная
+/// правка рассинхронизировала бы его навсегда, а здесь источник правды —
+/// сами записки.
+#[tauri::command]
+fn prune_images(app: tauri::AppHandle, keep: Vec<String>) -> Result<usize, String> {
+    let dir = images_dir(&app)?;
+    let keep: std::collections::HashSet<&str> = keep.iter().map(|s| s.as_str()).collect();
+
+    let Ok(entries) = std::fs::read_dir(&dir) else { return Ok(0) };
+    let mut removed = 0usize;
+    for entry in entries.flatten() {
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+        if keep.contains(name.as_str()) {
+            continue;
+        }
+        if std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
 // -------------------------------------------------------------- quick capture
 
 /// Toggles the quick capture window. Pressing the shortcut while it is already
@@ -404,7 +548,13 @@ pub fn run() {
             hide_quick,
             set_quick_shortcut,
             make_backup,
-            open_backups
+            open_backups,
+            save_image,
+            save_image_as,
+            image_path,
+            prune_images,
+            read_sync_config,
+            write_sync_config
         ])
         .on_window_event(|window, event| match event {
             // Closing never quits: the main window hides to the tray so the
@@ -425,7 +575,16 @@ pub fn run() {
     // is not registered here is one the frontend must never call, which is why
     // the Android checks live in lib/window.ts rather than in try/catch.
     #[cfg(mobile)]
-    let builder = builder.invoke_handler(tauri::generate_handler![set_reminders, make_backup]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        set_reminders,
+        make_backup,
+        save_image,
+        save_image_as,
+        image_path,
+        prune_images,
+        read_sync_config,
+        write_sync_config
+    ]);
 
     builder
         .setup(|app| {

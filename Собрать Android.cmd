@@ -5,8 +5,10 @@ setlocal
 rem ---------------------------------------------------------------------------
 rem  Сборка Android-версии Nook.
 rem
-rem  Все инструменты берутся из папки Claude-Tools на рабочем столе. В систему
-rem  ничего не прописано, поэтому переменные задаются здесь.
+rem  Все инструменты берутся из папки "Инструменты" двумя уровнями выше этого
+rem  файла (Claude  code\Инструменты). Путь относительный, поэтому переезд всей
+rem  папки целиком сборку не ломает. В систему ничего не прописано, поэтому
+rem  переменные задаются здесь.
 rem
 rem  ВНИМАНИЕ: в src-tauri\gen\android лежит написанный вручную код виджета
 rem  (NookWidget.kt, NookData.kt, NookWidgetService.kt, разметка nook_widget*,
@@ -21,7 +23,7 @@ rem  Из-за этого линкер для Android приходится ук�
 rem  делает за нас сама tauri.
 rem ---------------------------------------------------------------------------
 
-set "TOOLS=%USERPROFILE%\Desktop\Claude-Tools"
+for %%I in ("%~dp0..\..\Инструменты") do set "TOOLS=%%~fI"
 set "NDK=%TOOLS%\android-sdk\ndk\27.3.13750724"
 set "NDKBIN=%NDK%\toolchains\llvm\prebuilt\windows-x86_64\bin"
 
@@ -38,7 +40,18 @@ set "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=%NDKBIN%\aarch64-linux-android24-
 set "CC_aarch64_linux_android=%NDKBIN%\aarch64-linux-android24-clang.cmd"
 set "AR_aarch64_linux_android=%NDKBIN%\llvm-ar.exe"
 
+rem Где лежит Android-проект. По этой переменной сборка Rust заново пишет
+rem gen\android\tauri.settings.gradle — файл с абсолютными путями к библиотекам
+rem Tauri внутри папки с инструментами. Без неё файл остаётся старым, и после
+rem переезда папки gradle ищет библиотеки там, где их уже нет.
+set "TAURI_ANDROID_PROJECT_PATH=%~dp0src-tauri\gen\android"
+
 cd /d "%~dp0"
+
+rem Обновить дату у tauri.conf.json: cargo перезапускает генератор gradle-файлов
+rem только когда что-то из его входов изменилось, а смена переменной окружения
+rem входом не считается. Файл не меняется, меняется только дата.
+copy /b "src-tauri\tauri.conf.json"+,, "src-tauri\tauri.conf.json" >nul
 
 set "APK=src-tauri\gen\android\app\build\outputs\apk\arm64\debug\app-arm64-debug.apk"
 

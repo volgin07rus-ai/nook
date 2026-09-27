@@ -38,6 +38,15 @@ private class NookWidgetFactory(private val context: Context) :
 
         row.setTextViewText(R.id.nook_row_title, item.title)
 
+        // Кружок красится в цвет категории. Фильтр по SRC_IN закрашивает
+        // непрозрачные пиксели рисунка, а у кольца это ровно его обводка —
+        // заливка внутри прозрачная и остаётся прозрачной.
+        row.setInt(
+            R.id.nook_row_ring,
+            "setColorFilter",
+            item.color ?: context.getColor(R.color.nook_widget_control),
+        )
+
         if (item.meta.isEmpty()) {
             row.setViewVisibility(R.id.nook_row_meta, android.view.View.GONE)
         } else {

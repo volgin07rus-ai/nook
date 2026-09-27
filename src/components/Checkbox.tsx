@@ -19,9 +19,7 @@ export function Checkbox({ checked, onChange, label, tint, size = 'md' }: Checkb
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      /* Пустой кружок выпуклый — его нажимают; отмеченный вдавлен, как кнопка,
-         которую уже вдавили. Состояние читается ещё и на ощупь для глаза. */
-      className={`focus-ring press ${box} ${checked ? 'sink' : 'raise'} grid shrink-0 place-items-center rounded-full border transition-[box-shadow,background-color,border-color] duration-150`}
+      className={`focus-ring press ${box} grid shrink-0 place-items-center rounded-full border transition-[background-color,border-color] duration-150`}
       style={{
         borderColor: checked
           ? 'var(--color-accent)'

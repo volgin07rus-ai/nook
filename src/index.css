@@ -36,6 +36,12 @@
 
   --color-danger: oklch(var(--l-danger) 0.16 25);
 
+  /* Подложка полей и второстепенных кнопок. Полупрозрачная, а не сплошная:
+   * одна и та же заливка видна и на фоне окна, и на карточке, потому что она
+   * всегда чуть темнее (или светлее) того, на чём лежит. */
+  --color-fill: var(--fill);
+  --color-fill-hover: var(--fill-hover);
+
   /* Five steps, ratio ~1.2. Fixed rem, never fluid: this is product UI. */
   --text-xs: 0.6875rem;
   --text-xs--line-height: 1rem;
@@ -62,20 +68,6 @@
   --chroma: 0.012;
   /* Fractional on purpose: see the note on .pane-solid. */
   --rim-width: 1.5px;
-
-  /*
-   * Рельеф мелких контролов. Крупные поверхности берут --shadow-card.
-   *
-   * Две мягкие тени и всё: свет сверху слева, тень снизу справа. Ни заливки,
-   * ни блика по кромке — от них поверхность начинала выглядеть стеклянной, а
-   * нужен просто объём.
-   */
-  --lift:
-    -2px -2px 4px var(--depth-hi),
-    2px 3px 7px var(--depth-lo);
-  --sunk:
-    inset 2px 2px 4px var(--depth-lo),
-    inset -2px -2px 4px var(--depth-hi);
 }
 
 [data-theme='dark'] {
@@ -99,30 +91,21 @@
   --l-accent-dim: 33%;
   --l-danger: 66%;
   --accent-lift: 5%;
-  /* Свет сверху слева, тень снизу справа — см. блок «Глубина» ниже. */
-  --depth-hi: oklch(100% 0 0 / 0.06);
-  --depth-lo: oklch(0% 0 0 / 0.55);
-  /*
-   * Подложка поля — на три ступени светлее карточки под ним.
-   *
-   * Тут вся граница и держится. В тёмной теме иначе никак: WCAG считает
-   * контраст с добавкой 0.05, и на почти чёрном фоне это упирается в потолок —
-   * даже чистый чёрный против карточки даёт всего 1.44, а 3:1 достижимо только
-   * чем-то откровенно светлым, то есть той самой линией, от которой мы уходим.
-   * Так что здесь работает ступенька по светлоте, а не измеримый контраст.
-   */
-  --field-fill: oklch(33% var(--c-n) var(--hue));
-  /* Мягкая тень сверху и слабый отсвет снизу. Ноль резких линий: и та, и
-   * другая размыты, поэтому кромка читается как край впадины, а не как рамка. */
-  --groove:
-    inset 0 2px 3px oklch(0% 0 0 / 0.45),
-    inset 0 -1px 2px oklch(100% 0 0 / 0.12);
+  /* На тёмном подложка светлее того, что под ней. */
+  --fill: oklch(100% 0 0 / 0.07);
+  --fill-hover: oklch(100% 0 0 / 0.11);
+  /* Тени только падающие, вниз и размытые. На почти чёрном фоне их почти не
+   * видно, поэтому отделяет поверхности в первую очередь ступень светлоты, а
+   * тень лишь добавляет ощущение, что карточка не приклеена к фону. */
   --shadow-card:
-    -3px -3px 7px var(--depth-hi),
-    5px 8px 18px var(--depth-lo);
+    0 1px 2px oklch(0% 0 0 / 0.3),
+    0 10px 28px -10px oklch(0% 0 0 / 0.6);
   --shadow-lift:
-    -3px -3px 9px var(--depth-hi),
-    9px 14px 30px var(--depth-lo);
+    0 2px 6px oklch(0% 0 0 / 0.35),
+    0 18px 40px -12px oklch(0% 0 0 / 0.7);
+  --dock-drop:
+    drop-shadow(0 2px 4px oklch(0% 0 0 / 0.35))
+    drop-shadow(0 12px 20px oklch(0% 0 0 / 0.5));
   --glass-edge: oklch(100% 0 0 / 0.22);
   --glass-sheen: oklch(100% 0 0 / 0.1);
   --glass-text-shadow: 0 1px 3px oklch(0% 0 0 / 0.6);
@@ -150,24 +133,20 @@
   --l-accent-dim: 91%;
   --l-danger: 52%;
   --accent-lift: -5%;
-  --depth-hi: oklch(100% 0 0 / 0.95);
-  --depth-lo: oklch(58% 0.015 var(--hue) / 0.28);
-  /*
-   * В светлой теме потолка нет: тень на светлом фоне набирает контраст сколько
-   * нужно. Поэтому здесь резкая линия не понадобилась вовсе — граница держится
-   * на размытой тени сверху, и её пик как раз и меряется.
-   */
-  --field-fill: oklch(95.5% var(--c-n) var(--hue));
-  --groove:
-    inset 0 2px 3px oklch(38% 0.015 var(--hue) / 0.68),
-    inset 0 -1px 2px oklch(100% 0 0 / 0.9);
-  /* В светлой теме гравировка настоящая: тёмный текст со светом снизу. */
+  /* На светлом подложка темнее того, что под ней. */
+  --fill: oklch(30% 0.01 var(--hue) / 0.06);
+  --fill-hover: oklch(30% 0.01 var(--hue) / 0.1);
+  /* Тени подкрашены тоном фона: нейтрально-серая тень на тёплом фоне
+   * выглядит грязным пятном. */
   --shadow-card:
-    -3px -3px 7px var(--depth-hi),
-    4px 7px 16px var(--depth-lo);
+    0 1px 2px oklch(45% 0.02 var(--hue) / 0.06),
+    0 8px 24px -8px oklch(45% 0.02 var(--hue) / 0.18);
   --shadow-lift:
-    -4px -4px 10px var(--depth-hi),
-    8px 12px 26px var(--depth-lo);
+    0 2px 6px oklch(45% 0.02 var(--hue) / 0.08),
+    0 16px 40px -12px oklch(45% 0.02 var(--hue) / 0.28);
+  --dock-drop:
+    drop-shadow(0 1px 3px oklch(45% 0.02 var(--hue) / 0.1))
+    drop-shadow(0 12px 20px oklch(45% 0.03 var(--hue) / 0.22));
   --glass-edge: oklch(0% 0 0 / 0.24);
   --glass-sheen: oklch(100% 0 0 / 0.5);
   --glass-text-shadow: 0 1px 3px oklch(100% 0 0 / 0.7);
@@ -313,62 +292,33 @@
   }
 
   /*
-   * Глубина.
-   *
-   * Свет в интерфейсе падает сверху слева — одинаково для всего, иначе объём
-   * рассыпается на несвязанные кляксы. Отсюда пара теней у каждой поверхности:
-   * светлая с той стороны, откуда светит, тёмная с противоположной.
-   *
-   * Смысл у выпуклого и вдавленного разный, и он не декоративный. Выпуклое
-   * можно нажать: кнопки, переключатели, карточки. Вдавленное — это углубление,
-   * куда что-то кладут или что-то уже выбрано: поля ввода, включённые фильтры,
-   * отмеченные галочки. Поэтому нажатие переворачивает состояние — кнопка
-   * уходит внутрь ровно на то время, пока её держат.
-   *
-   * Тени не несут никакой информации в одиночку: границы контролов остаются на
-   * цветном токене, а текст — на своём. Мягкий рельеф славится тем, что топит
-   * контраст, и здесь он ничего не заменяет, а только добавляется сверху.
-   */
-  .raise {
-    box-shadow: var(--lift);
-  }
-  .raise:active:not(:disabled),
-  .raise[aria-pressed='true'],
-  .sink {
-    box-shadow: var(--sunk);
-  }
-
-  /*
    * One input shape for the whole app.
    *
-   * The border is drawn at rest, not only on hover. Hiding it until the
+   * The shape is visible at rest, not only on hover. Hiding it until the
    * pointer arrives works on a desktop and fails completely on a phone, where
    * there is no hover at all: every select and every input read as plain text
    * on a card, with nothing to say they could be tapped.
    *
-   * Вдавленное, а не выпуклое: поле — это углубление, в которое пишут.
-   *
-   * Никаких линий по кромке: и обводка, и одиночная резкая линия читались как
-   * рамка, наклеенная поверх. Впадину делают собственная подложка, чуть
-   * отличная от фона, и мягкая тень под верхним краем — этого хватает, чтобы
-   * поле нашлось, и не хватает, чтобы оно выглядело обведённым.
+   * Плоское: ни обводки, ни тени внутрь. Поле находится по собственной
+   * заливке, которая чуть отличается от того, на чём лежит, — и в фокусе
+   * получает акцентную кромку, чтобы было видно, куда сейчас печатаешь.
    */
   .field {
-    background: var(--field-fill);
+    background: var(--fill);
     /* Прозрачная, но существующая: держит геометрию, чтобы фокус не сдвигал
-     * содержимое на пиксель, и красится акцентом при фокусе. */
+     * содержимое на пиксель. */
     border: 1px solid transparent;
     border-radius: var(--radius-md);
-    box-shadow: var(--groove);
     transition:
       border-color 160ms var(--ease-out-quart),
       background-color 160ms var(--ease-out-quart);
   }
   .field:hover {
-    border-color: var(--color-fg-3);
+    background: var(--fill-hover);
   }
   .field:focus-within {
     border-color: var(--color-accent);
+    background: var(--fill);
   }
 
   .focus-ring:focus-visible {
@@ -384,13 +334,19 @@
     transform: scale(0.97);
   }
 
-  /* Primary action: a solid pill, the way the reference does it. */
+  /*
+   * Primary action: a solid accent pill.
+   *
+   * Тень у неё цветная, того же тона, что сама кнопка, — как у шарика в нижнем
+   * меню. Серая тень под ярким цветом выглядит грязью, а цветная читается как
+   * свечение и оставляет кнопку плоской.
+   */
   .btn-primary {
     background: var(--color-accent);
     color: var(--color-on-accent);
     border-radius: 999px;
     font-weight: 500;
-    box-shadow: var(--lift);
+    box-shadow: 0 4px 12px -4px color-mix(in oklch, var(--color-accent) 55%, transparent);
     transition:
       background-color 160ms var(--ease-out-quart),
       box-shadow 160ms var(--ease-out-quart);
@@ -398,9 +354,8 @@
   .btn-primary:hover:not(:disabled) {
     background: var(--color-accent-hi);
   }
-  .btn-primary:active:not(:disabled),
-  .btn-quiet:active:not(:disabled) {
-    box-shadow: var(--sunk);
+  .btn-primary:active:not(:disabled) {
+    box-shadow: 0 1px 4px -1px color-mix(in oklch, var(--color-accent) 45%, transparent);
   }
   .btn-primary:disabled {
     opacity: 0.4;
@@ -408,17 +363,15 @@
   }
 
   .btn-quiet {
-    background: var(--color-panel);
+    background: var(--fill);
     color: var(--color-fg-2);
     border-radius: 999px;
-    box-shadow: var(--lift);
     transition:
       background-color 160ms var(--ease-out-quart),
-      box-shadow 160ms var(--ease-out-quart),
       color 160ms var(--ease-out-quart);
   }
   .btn-quiet:hover:not(:disabled) {
-    background: var(--color-raised);
+    background: var(--fill-hover);
     color: var(--color-fg);
   }
 
@@ -590,6 +543,22 @@
   text-decoration: line-through;
 }
 
+/*
+ * Картинки в записке.
+ *
+ * display:block и своя строка: внутри строки текста фотография вела бы себя
+ * как огромная буква и ломала бы межстрочный интервал. max-width держит её в
+ * ширине колонки при любом исходном размере.
+ */
+.note-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5em 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
 /* Placeholder. :empty will not do: the browser leaves a <br> behind the moment
  * you type and delete, so emptiness is tracked by the component instead. */
 .note-body[data-empty='true']::before {
@@ -622,46 +591,36 @@
 }
 
 /*
- * The lamp over the active tab.
+ * Нижнее меню. Движение шарика и форма чаши описаны в Dock.tsx, здесь только
+ * внешний вид.
  *
- * A bar of light at the top edge and the beam it throws down over the icon.
- * Drawn rather than animated: the movement between tabs is a shared layout
- * animation in the component, so this file only has to say what the light
- * looks like once, and the same element slides from tab to tab wearing it.
- *
- * The beam is a clipped gradient, not a blur. A blur that reads at all on a
- * light theme is heavy enough to grey out the label underneath it on a dark
- * one; a trapezoid fading to nothing keeps the same shape in both.
+ * Тень — фильтром, а не box-shadow: у подложки вырезана чаша под шариком, и
+ * тень должна повторять вырез. box-shadow рисует тень по прямоугольнику с
+ * углами и про вырез не знает; drop-shadow считается по тому, что реально
+ * нарисовано. Сам шарик чуть светлее сверху слева и темнее снизу справа, а под
+ * ним — цветное свечение, которое ложится в чашу.
  */
-.tab-lamp::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 2.25rem;
-  height: 3px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: var(--color-accent);
-  box-shadow: 0 0 12px 1px var(--color-accent);
+.dock-shadow {
+  filter: var(--dock-drop);
 }
 
-.tab-lamp::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  /* Exactly the width of the tab, so nothing has to be clipped away: the beam
-   * reaches the edges at the bottom and stops there. The top of the trapezoid
-   * matches the bar above it, so the light leaves the slot rather than
-   * appearing out of thin air beside it. */
-  clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, var(--color-accent), transparent 78%);
-  opacity: 0.24;
+.dock-ball {
+  color: var(--color-on-accent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--color-accent) 84%, white),
+    var(--color-accent) 55%,
+    color-mix(in oklch, var(--color-accent) 88%, black)
+  );
+  /* Свечение едва заметное: шарик лежит в чаше, и сильный ореол под ним
+   * заливал полосу цветом, а нужен только намёк на то, что он не приклеен. */
+  box-shadow: 0 4px 10px -3px color-mix(in oklch, var(--color-accent) 32%, transparent);
 }
 
-/* The lit icon, so the beam has something to land on. */
-.tab-glow {
-  filter: drop-shadow(0 0 6px color-mix(in oklch, var(--color-accent) 55%, transparent));
+/* Кольцо цвета полосы вокруг точки: иначе красное на акцентном шарике
+ * сливается в одно пятно. */
+.dock-alert {
+  box-shadow: 0 0 0 2px var(--color-surface);
 }
 
 /*

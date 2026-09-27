@@ -109,7 +109,11 @@ abstract class NookBaseWidget : AppWidgetProvider() {
          * экране всё равно не видно, а после — они уже показывают свежее.
          */
         fun refreshAll(context: Context) {
-            for (widget in listOf(NookWidget::class.java, NookNotesWidget::class.java)) {
+            // Календарь живёт своей разметкой и обновляется сам.
+            NookCalendarWidget.refresh(context)
+
+            val kinds = listOf(NookWidget::class.java, NookNotesWidget::class.java)
+            for (widget in kinds) {
                 val manager = AppWidgetManager.getInstance(context)
                 val ids = manager.getAppWidgetIds(ComponentName(context, widget))
                 if (ids.isEmpty()) continue

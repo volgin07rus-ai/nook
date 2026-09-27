@@ -5,23 +5,28 @@ import type { View } from '../App'
 import type { Filter } from '../lib/filters'
 import { filterTitle, matchesFilter } from '../lib/filters'
 import { plural, todayKey } from '../lib/date'
-import { T_LAYOUT, viewMotion } from '../lib/motion'
+import { viewMotion } from '../lib/motion'
 import { useKeyboard } from '../lib/useKeyboard'
 import { TaskComposer } from './TaskComposer'
 import { TaskItem } from './TaskItem'
 import { SettingsView } from './SettingsView'
 import { NotepadView } from './NotepadView'
 import { FilmsView } from './FilmsView'
+import { CalendarView } from './CalendarView'
+import { HabitsView } from './HabitsView'
+import { PulseCard } from './PulseCard'
 import { StatsPanel } from './StatsPanel'
 import { Toast } from './Toast'
 import { FilterSheet } from './FilterSheet'
+import { MORE_VIEWS, MoreSheet } from './MoreSheet'
+import { Dock, type DockItem } from './Dock'
 import {
   CaretDownIcon,
-  ChartBarIcon,
+  DotsThreeIcon,
   FilmSlateIcon,
-  GearSixIcon,
   MagnifyingGlassIcon,
   NotePencilIcon,
+  TargetIcon,
   TrayIcon,
   XIcon,
 } from './icons'
@@ -92,15 +97,24 @@ export function PhoneApp({
           <motion.div key="films" {...viewMotion} className="flex min-h-0 flex-1 flex-col">
             <FilmsView films={data.films} notes={data.notes} phone />
           </motion.div>
+        ) : view === 'calendar' ? (
+          <motion.div key="calendar" {...viewMotion} className="flex min-h-0 flex-1 flex-col">
+            <CalendarView tasks={data.tasks} categories={data.categories} phone />
+          </motion.div>
         ) : view === 'stats' ? (
           <motion.div key="stats" {...viewMotion} className="flex min-h-0 flex-1 flex-col">
-            <StatsPanel tasks={data.tasks} categories={data.categories} phone />
+            <StatsPanel tasks={data.tasks} categories={data.categories} habits={data.habits} phone />
+          </motion.div>
+        ) : view === 'habits' ? (
+          <motion.div key="habits" {...viewMotion} className="flex min-h-0 flex-1 flex-col">
+            <HabitsView habits={data.habits} phone />
           </motion.div>
         ) : (
           <motion.div key="tasks" {...viewMotion} className="flex min-h-0 flex-1 flex-col">
             <TasksScreen
               data={data}
               ready={ready}
+              onOpenStats={() => onNavigate('stats')}
               filter={filter}
               onFilterChange={onFilterChange}
               query={query}
@@ -119,7 +133,7 @@ export function PhoneApp({
           keys in the way, and the row it costs is the row the formatting bar
           needs to sit against the keyboard instead of floating above it. */}
       {!keyboard.open && (
-        <Tabs
+        <PhoneDock
           view={view}
           onNavigate={onNavigate}
           overdue={data.tasks.filter((t) => matchesFilter(t, { kind: 'overdue' })).length}
@@ -132,6 +146,7 @@ export function PhoneApp({
 function TasksScreen({
   data,
   ready,
+  onOpenStats,
   filter,
   onFilterChange,
   query,
@@ -142,6 +157,7 @@ function TasksScreen({
 }: {
   data: AppData
   ready: boolean
+  onOpenStats: () => void
   filter: Filter
   onFilterChange: (filter: Filter) => void
   query: string
@@ -221,6 +237,12 @@ function TasksScreen({
         onPick={onFilterChange}
       />
 
+      {/* Результат дня — над списком, а не в «Ещё»: ради него сюда и заходят
+          вечером. Одна карточка, и она ведёт в обзор. */}
+      <div className="shrink-0 px-4 pt-3">
+        <PulseCard tasks={data.tasks} habits={data.habits} onOpen={onOpenStats} />
+      </div>
+
       <div className="shrink-0 px-4 pt-3">
         <TaskComposer
           categories={data.categories}
@@ -262,16 +284,14 @@ function TasksScreen({
   )
 }
 
-const TABS: Array<{ view: View; label: string; icon: React.ReactNode }> = [
-  { view: 'tasks', label: 'Задачи', icon: <TrayIcon size={20} /> },
-  { view: 'notepad', label: 'Блокнот', icon: <NotePencilIcon size={20} /> },
-  { view: 'films', label: 'Фильмы', icon: <FilmSlateIcon size={20} /> },
-  { view: 'stats', label: 'Обзор', icon: <ChartBarIcon size={20} /> },
-  { view: 'settings', label: 'Настройки', icon: <GearSixIcon size={20} /> },
-]
-
-/** Bottom bar, padded past the gesture area so nothing sits under the swipe. */
-function Tabs({
+/**
+ * Внизу — только то, что открывают каждый день: задачи, привычки, фильмы и
+ * блокнот. Календарь, обзор и настройки живут в шторке «Ещё».
+ *
+ * Когда открыт один из них, шарик садится на «Ещё», но несёт иконку самого
+ * раздела. Иначе, сидя в настройках, по меню нельзя было бы понять, где ты.
+ */
+function PhoneDock({
   view,
   onNavigate,
   overdue,
@@ -280,52 +300,42 @@ function Tabs({
   onNavigate: (view: View) => void
   overdue: number
 }) {
-  return (
-    <nav
-      className="flex shrink-0 border-t border-line-soft bg-canvas"
-      style={{ paddingBottom: 'var(--safe-bottom, 0px)' }}
-    >
-      {TABS.map((tab) => {
-        const active = view === tab.view
-        return (
-          <button
-            key={tab.view}
-            type="button"
-            onClick={() => onNavigate(tab.view)}
-            aria-current={active ? 'page' : undefined}
-            className={`focus-ring relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 transition-colors duration-150 ${
-              active ? 'text-accent' : 'text-fg-3'
-            }`}
-          >
-            {/*
-             * One lamp for the whole bar, not one per tab.
-             *
-             * Sharing a layoutId means the same element is handed from tab to
-             * tab, so switching slides it across instead of switching one off
-             * and another on. Behind the icon, never over it: the beam is a
-             * hint about where you are, and it must not make the glyph it is
-             * pointing at any harder to read.
-             */}
-            {active && (
-              <motion.span
-                layoutId="tab-lamp"
-                transition={T_LAYOUT}
-                aria-hidden
-                className="tab-lamp pointer-events-none absolute inset-0"
-              />
-            )}
+  const [more, setMore] = useState(false)
+  const inMore = MORE_VIEWS.find((item) => item.view === view)
 
-            <span className={`relative ${active ? 'tab-glow' : ''}`}>
-              {tab.icon}
-              {tab.view === 'tasks' && overdue > 0 && (
-                <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-danger" />
-              )}
-            </span>
-            <span className="relative text-xs">{tab.label}</span>
-          </button>
-        )
-      })}
-    </nav>
+  const items: DockItem[] = [
+    {
+      id: 'tasks',
+      label: 'Задачи',
+      Icon: TrayIcon,
+      alert: overdue > 0,
+      onPress: () => onNavigate('tasks'),
+    },
+    { id: 'habits', label: 'Привычки', Icon: TargetIcon, onPress: () => onNavigate('habits') },
+    { id: 'films', label: 'Фильмы', Icon: FilmSlateIcon, onPress: () => onNavigate('films') },
+    { id: 'notepad', label: 'Блокнот', Icon: NotePencilIcon, onPress: () => onNavigate('notepad') },
+    {
+      id: 'more',
+      label: 'Ещё',
+      Icon: DotsThreeIcon,
+      weight: 'bold',
+      popup: { open: more },
+      onPress: () => setMore(true),
+    },
+  ]
+
+  const active = inMore ? items.length - 1 : items.findIndex((item) => item.id === view)
+
+  return (
+    <>
+      <Dock
+        items={items}
+        active={active}
+        ball={inMore ? { key: inMore.view, Icon: inMore.Icon } : undefined}
+        phone
+      />
+      <MoreSheet open={more} onClose={() => setMore(false)} view={view} onNavigate={onNavigate} />
+    </>
   )
 }
 

@@ -9,6 +9,16 @@ export const T = { duration: 0.2, ease: EASE_OUT }
 export const T_FAST = { duration: 0.14, ease: EASE_OUT }
 export const T_LAYOUT = { duration: 0.22, ease: EASE_OUT }
 
+/**
+ * Шарик нижнего меню — единственное исключение из «ничего не пружинит».
+ *
+ * Здесь отскок и есть смысл движения: шарик перелетает к новому разделу,
+ * чуть проскакивает цель и садится на место, и глаз успевает проследить,
+ * куда он делся. Затухание ~0.75: перелёт на 3–4% и покой примерно за 0.3 с —
+ * отскок ещё читается, а прогиб полосы едет за шариком плавно, не дёргаясь.
+ */
+export const T_DOCK = { type: 'spring' as const, stiffness: 620, damping: 36, mass: 0.9 }
+
 /** Row entering or leaving a list. */
 export const rowMotion = {
   initial: { opacity: 0, y: -4 },

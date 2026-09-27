@@ -3,4 +3,15 @@
     <style name="Theme.nook" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
     </style>
+
+    <!-- Подпись дня недели в виджете-календаре: семь одинаковых колонок. -->
+    <style name="NookWeekday">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textColor">@color/nook_widget_fg_3</item>
+    </style>
 </resources>

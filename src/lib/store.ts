@@ -3,6 +3,7 @@ import type {
   AppData,
   Category,
   Film,
+  Habit,
   Note,
   Priority,
   Repeat,
@@ -11,6 +12,7 @@ import type {
   Task,
 } from '../types'
 import { clampRating, createId, defaultData, noteTitle } from '../types'
+import type { Grave } from '../types'
 import { isDuplicate, type ParsedFilm } from './films'
 import { advanceDue } from './date'
 import { backend } from './persistence'
@@ -50,6 +52,22 @@ function update(mutate: (data: AppData) => AppData) {
   past.push(previous)
   if (past.length > UNDO_LIMIT) past.shift()
   commit(next)
+}
+
+/**
+ * Похоронить запись.
+ *
+ * Удаление обязано оставлять след, иначе синхронизация вернёт его обратно:
+ * на второй копии отсутствие записи неотличимо от «её тут ещё не было».
+ * Записи старше трёх месяцев выбрасываются — к тому времени обе копии давно
+ * узнали об удалении, а могила иначе росла бы вечно.
+ */
+const GRAVE_TTL = 90 * 24 * 60 * 60 * 1000
+
+function bury(data: AppData, ids: string[]): Grave[] {
+  const now = Date.now()
+  const fresh = data.graveyard.filter((g) => now - g.at < GRAVE_TTL && !ids.includes(g.id))
+  return [...fresh, ...ids.map((id) => ({ id, at: now }))]
 }
 
 /** Settings are preferences, not content: they stay out of the undo history. */
@@ -107,6 +125,7 @@ export function useStoreReady(): boolean {
 export interface NewTask {
   title: string
   due?: string | null
+  dueTime?: string | null
   priority?: Priority
   categoryId?: string | null
   repeat?: Repeat
@@ -121,6 +140,7 @@ function buildTask(input: NewTask): Task {
     createdAt: Date.now(),
     completedAt: null,
     due: input.due ?? null,
+    dueTime: input.due ? (input.dueTime ?? null) : null,
     priority: input.priority ?? 'normal',
     categoryId: input.categoryId ?? null,
     notes: '',
@@ -128,6 +148,7 @@ function buildTask(input: NewTask): Task {
     repeat: input.repeat ?? 'none',
     remindAt: input.remindAt ?? null,
     reminded: false,
+    updatedAt: Date.now(),
   }
 }
 
@@ -160,6 +181,7 @@ function nextOccurrence(task: Task): Task {
     subtasks: task.subtasks.map((s) => ({ ...s, done: false })),
     remindAt,
     reminded: false,
+    updatedAt: Date.now(),
   }
 }
 
@@ -170,7 +192,14 @@ export function toggleTask(id: string) {
 
   update((data) => {
     const tasks = data.tasks.map((t) =>
-      t.id === id ? { ...t, done: completing, completedAt: completing ? Date.now() : null } : t,
+      t.id === id
+        ? {
+            ...t,
+            done: completing,
+            completedAt: completing ? Date.now() : null,
+            updatedAt: Date.now(),
+          }
+        : t,
     )
     if (completing && task.repeat !== 'none') {
       tasks.unshift(nextOccurrence(task))
@@ -189,7 +218,9 @@ export function toggleTask(id: string) {
 export function updateTask(id: string, patch: Partial<Omit<Task, 'id'>>) {
   update((data) => ({
     ...data,
-    tasks: data.tasks.map((task) => (task.id === id ? { ...task, ...patch } : task)),
+    tasks: data.tasks.map((task) =>
+      task.id === id ? { ...task, ...patch, updatedAt: Date.now() } : task,
+    ),
   }))
 }
 
@@ -202,7 +233,12 @@ export function snoozeTask(id: string, minutes: number) {
     ...data,
     tasks: data.tasks.map((task) =>
       task.id === id
-        ? { ...task, remindAt: Date.now() + minutes * 60_000, reminded: false }
+        ? {
+            ...task,
+            remindAt: Date.now() + minutes * 60_000,
+            reminded: false,
+            updatedAt: Date.now(),
+          }
         : task,
     ),
   }))
@@ -233,7 +269,11 @@ export function reorderVisibleTasks(orderedIds: string[]) {
 
 export function deleteTask(id: string) {
   const task = state.tasks.find((t) => t.id === id)
-  update((data) => ({ ...data, tasks: data.tasks.filter((t) => t.id !== id) }))
+  update((data) => ({
+    ...data,
+    tasks: data.tasks.filter((t) => t.id !== id),
+    graveyard: bury(data, [id]),
+  }))
   if (task) {
     showToast(`Удалено: ${task.title}`, { label: 'Вернуть', run: () => void undo() })
   }
@@ -242,7 +282,14 @@ export function deleteTask(id: string) {
 export function clearCompleted() {
   const count = state.tasks.filter((t) => t.done).length
   if (count === 0) return
-  update((data) => ({ ...data, tasks: data.tasks.filter((task) => !task.done) }))
+  update((data) => ({
+    ...data,
+    tasks: data.tasks.filter((task) => !task.done),
+    graveyard: bury(
+      data,
+      data.tasks.filter((task) => task.done).map((task) => task.id),
+    ),
+  }))
   showToast(`Удалено выполненных: ${count}`, { label: 'Вернуть', run: () => void undo() })
 }
 
@@ -250,7 +297,9 @@ export function clearCompleted() {
 export function markReminded(id: string) {
   updateQuiet((data) => ({
     ...data,
-    tasks: data.tasks.map((task) => (task.id === id ? { ...task, reminded: true } : task)),
+    tasks: data.tasks.map((task) =>
+      task.id === id ? { ...task, reminded: true, updatedAt: Date.now() } : task,
+    ),
   }))
 }
 
@@ -260,7 +309,9 @@ function mapSubtasks(taskId: string, fn: (subtasks: Subtask[]) => Subtask[]) {
   update((data) => ({
     ...data,
     tasks: data.tasks.map((task) =>
-      task.id === taskId ? { ...task, subtasks: fn(task.subtasks) } : task,
+      task.id === taskId
+        ? { ...task, subtasks: fn(task.subtasks), updatedAt: Date.now() }
+        : task,
     ),
   }))
 }
@@ -292,7 +343,13 @@ export function deleteSubtask(taskId: string, subtaskId: string) {
 // ---------------------------------------------------------------- categories
 
 export function addCategory(name: string, color: string): Category {
-  const category: Category = { id: createId(), name: name.trim(), color, pinned: false }
+  const category: Category = {
+    id: createId(),
+    name: name.trim(),
+    color,
+    pinned: false,
+    updatedAt: Date.now(),
+  }
   update((data) => ({ ...data, categories: [...data.categories, category] }))
   return category
 }
@@ -311,7 +368,7 @@ export function toggleCategoryPin(id: string) {
     const category = data.categories.find((c) => c.id === id)
     if (!category) return data
     const rest = data.categories.filter((c) => c.id !== id)
-    const next = { ...category, pinned: !category.pinned }
+    const next = { ...category, pinned: !category.pinned, updatedAt: Date.now() }
     return { ...data, categories: next.pinned ? [next, ...rest] : [...rest, next] }
   })
 }
@@ -319,7 +376,9 @@ export function toggleCategoryPin(id: string) {
 export function updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>) {
   update((data) => ({
     ...data,
-    categories: data.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    categories: data.categories.map((c) =>
+      c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c,
+    ),
   }))
 }
 
@@ -330,8 +389,11 @@ export function deleteCategory(id: string) {
     ...data,
     categories: data.categories.filter((c) => c.id !== id),
     tasks: data.tasks.map((task) =>
-      task.categoryId === id ? { ...task, categoryId: null } : task,
+      task.categoryId === id
+        ? { ...task, categoryId: null, updatedAt: Date.now() }
+        : task,
     ),
+    graveyard: bury(data, [id]),
   }))
   if (category) {
     showToast(`Категория удалена: ${category.name}`, { label: 'Вернуть', run: () => void undo() })
@@ -371,7 +433,11 @@ export function setNoteTitle(id: string, title: string) {
 
 export function deleteNote(id: string) {
   const note = state.notes.find((n) => n.id === id)
-  update((data) => ({ ...data, notes: data.notes.filter((n) => n.id !== id) }))
+  update((data) => ({
+    ...data,
+    notes: data.notes.filter((n) => n.id !== id),
+    graveyard: bury(data, [id]),
+  }))
   if (note) {
     showToast(`Записка удалена: ${noteTitle(note)}`, { label: 'Вернуть', run: () => void undo() })
   }
@@ -389,6 +455,7 @@ export function addFilm(title: string, rating: number | null): Film | null {
     watched: false,
     createdAt: Date.now(),
     watchedAt: null,
+    updatedAt: Date.now(),
   }
   update((data) => ({ ...data, films: [film, ...data.films] }))
   return film
@@ -402,7 +469,9 @@ export function addFilm(title: string, rating: number | null): Film | null {
 export function updateFilm(id: string, patch: Partial<Omit<Film, 'id'>>) {
   updateQuiet((data) => ({
     ...data,
-    films: data.films.map((film) => (film.id === id ? { ...film, ...patch } : film)),
+    films: data.films.map((film) =>
+      film.id === id ? { ...film, ...patch, updatedAt: Date.now() } : film,
+    ),
   }))
 }
 
@@ -414,7 +483,14 @@ export function toggleFilmWatched(id: string) {
   update((data) => ({
     ...data,
     films: data.films.map((f) =>
-      f.id === id ? { ...f, watched, watchedAt: watched ? Date.now() : null } : f,
+      f.id === id
+        ? {
+            ...f,
+            watched,
+            watchedAt: watched ? Date.now() : null,
+            updatedAt: Date.now(),
+          }
+        : f,
     ),
   }))
 
@@ -425,7 +501,11 @@ export function toggleFilmWatched(id: string) {
 
 export function deleteFilm(id: string) {
   const film = state.films.find((f) => f.id === id)
-  update((data) => ({ ...data, films: data.films.filter((f) => f.id !== id) }))
+  update((data) => ({
+    ...data,
+    films: data.films.filter((f) => f.id !== id),
+    graveyard: bury(data, [id]),
+  }))
   if (film) {
     showToast(`Удалено: ${film.title}`, { label: 'Вернуть', run: () => void undo() })
   }
@@ -459,6 +539,7 @@ export function importFilms(parsed: ParsedFilm[]): { added: number; skipped: num
       // Descending, so the note's own order survives "сначала новые".
       createdAt: now - fresh.length,
       watchedAt: item.watched ? now : null,
+      updatedAt: now,
     })
   }
 
@@ -470,8 +551,75 @@ export function importFilms(parsed: ParsedFilm[]): { added: number; skipped: num
   return { added: fresh.length, skipped }
 }
 
+// -------------------------------------------------------------------- habits
+
+export function addHabit(name: string, color: string): Habit | null {
+  const trimmed = name.trim().slice(0, 80)
+  if (!trimmed) return null
+  const habit: Habit = {
+    id: createId(),
+    name: trimmed,
+    color,
+    days: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  // В конец, а не в начало: список привычек — это порядок дня, и новая
+  // привычка не должна вставать перед теми, что делают первыми.
+  update((data) => ({ ...data, habits: [...data.habits, habit] }))
+  return habit
+}
+
+export function updateHabit(id: string, patch: Partial<Pick<Habit, 'name' | 'color'>>) {
+  update((data) => ({
+    ...data,
+    habits: data.habits.map((habit) =>
+      habit.id === id ? { ...habit, ...patch, updatedAt: Date.now() } : habit,
+    ),
+  }))
+}
+
+/**
+ * Поставить или снять отметку за день.
+ *
+ * Отменяется через Ctrl+Z, но без всплывашки: галочки ставят по нескольку
+ * раз в день, и подтверждать каждую было бы шумом.
+ */
+export function toggleHabitDay(id: string, key: string) {
+  update((data) => ({
+    ...data,
+    habits: data.habits.map((habit) => {
+      if (habit.id !== id) return habit
+      const days = habit.days.includes(key)
+        ? habit.days.filter((day) => day !== key)
+        : [...habit.days, key].sort()
+      return { ...habit, days, updatedAt: Date.now() }
+    }),
+  }))
+}
+
+export function reorderHabits(ordered: Habit[]) {
+  update((data) => ({ ...data, habits: ordered }))
+}
+
+export function deleteHabit(id: string) {
+  const habit = state.habits.find((h) => h.id === id)
+  update((data) => ({
+    ...data,
+    habits: data.habits.filter((h) => h.id !== id),
+    graveyard: bury(data, [id]),
+  }))
+  if (habit) {
+    showToast(`Удалено: ${habit.name}`, { label: 'Вернуть', run: () => void undo() })
+  }
+}
+
 export function updateSettings(patch: Partial<Settings>) {
-  updateQuiet((data) => ({ ...data, settings: { ...data.settings, ...patch } }))
+  updateQuiet((data) => ({
+    ...data,
+    settings: { ...data.settings, ...patch },
+    settingsAt: Date.now(),
+  }))
 }
 
 export function replaceAll(data: AppData) {

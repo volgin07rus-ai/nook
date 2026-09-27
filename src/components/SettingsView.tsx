@@ -11,6 +11,7 @@ import type {
 import { T_LAYOUT } from '../lib/motion'
 import { ACCENTS, normalize } from '../types'
 import { Select } from './Select'
+import { SyncSettings } from './SyncSettings'
 import { Labelled } from './TaskItem'
 import { clearCompleted, replaceAll, updateSettings } from '../lib/store'
 import { accentSwatch } from '../lib/useAccent'
@@ -333,6 +334,10 @@ export function SettingsView({ data }: SettingsViewProps) {
             </button>
           </Section>
         )}
+
+        <Section title="Синхронизация">
+          <SyncSettings />
+        </Section>
 
         <Section title="Перенос вручную">
           <label className="flex flex-col gap-1.5">

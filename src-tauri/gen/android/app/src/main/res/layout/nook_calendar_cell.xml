@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Одна клетка месяца: число и до трёх точек под ним.
+
+  Точки появляются, только если в этот день что-то есть, и красятся в цвета
+  категорий — как в календаре внутри приложения. Ничего не запланировано —
+  клетка остаётся просто числом, и виджет выглядит обычным календарём.
+
+  Сегодняшнее число стоит на кружке цвета текста и само окрашено в цвет
+  подложки: инверсия видна с любого расстояния.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nook_cell_root"
+    android:layout_width="match_parent"
+    android:layout_height="34dp"
+    android:orientation="vertical"
+    android:gravity="center_horizontal|top"
+    android:paddingTop="2dp">
+
+    <FrameLayout
+        android:layout_width="22dp"
+        android:layout_height="22dp">
+
+        <ImageView
+            android:id="@+id/nook_cell_today"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:visibility="invisible"
+            android:src="@drawable/nook_widget_today" />
+
+        <TextView
+            android:id="@+id/nook_cell_day"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textSize="12sp"
+            android:includeFontPadding="false"
+            android:textColor="@color/nook_widget_fg" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="5dp"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <ImageView
+            android:id="@+id/nook_cell_dot1"
+            android:layout_width="4dp"
+            android:layout_height="4dp"
+            android:layout_marginStart="1dp"
+            android:layout_marginEnd="1dp"
+            android:contentDescription="@null"
+            android:visibility="gone"
+            android:src="@drawable/nook_widget_dot" />
+
+        <ImageView
+            android:id="@+id/nook_cell_dot2"
+            android:layout_width="4dp"
+            android:layout_height="4dp"
+            android:layout_marginStart="1dp"
+            android:layout_marginEnd="1dp"
+            android:contentDescription="@null"
+            android:visibility="gone"
+            android:src="@drawable/nook_widget_dot" />
+
+        <ImageView
+            android:id="@+id/nook_cell_dot3"
+            android:layout_width="4dp"
+            android:layout_height="4dp"
+            android:layout_marginStart="1dp"
+            android:layout_marginEnd="1dp"
+            android:contentDescription="@null"
+            android:visibility="gone"
+            android:src="@drawable/nook_widget_dot" />
+    </LinearLayout>
+</LinearLayout>

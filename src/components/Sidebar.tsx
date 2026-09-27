@@ -17,9 +17,6 @@ import type { View } from '../App'
 import {
   CheckIcon,
   DotsSixVerticalIcon,
-  FilmSlateIcon,
-  GearSixIcon,
-  NotePencilIcon,
   PlusIcon,
   PushPinIcon,
   SquaresFourIcon,
@@ -36,18 +33,20 @@ interface SidebarProps {
   filter: Filter
   onFilterChange: (filter: Filter) => void
   view: View
-  onNavigate: (view: View) => void
   onToggleWidget: () => void
   widgetVisible: boolean
 }
 
+/**
+ * Боковая панель — только виды списка задач: фильтры и категории.
+ * Разделы приложения переехали в нижнее меню, см. Dock.
+ */
 export function Sidebar({
   tasks,
   categories,
   filter,
   onFilterChange,
   view,
-  onNavigate,
   onToggleWidget,
   widgetVisible,
 }: SidebarProps) {
@@ -97,18 +96,6 @@ export function Sidebar({
           label="Выполненные"
           active={isActive({ kind: 'done' })}
           onClick={() => onFilterChange({ kind: 'done' })}
-        />
-        <NavItem
-          icon={<NotePencilIcon />}
-          label="Блокнот"
-          active={view === 'notepad'}
-          onClick={() => onNavigate('notepad')}
-        />
-        <NavItem
-          icon={<FilmSlateIcon />}
-          label="Фильмы"
-          active={view === 'films'}
-          onClick={() => onNavigate('films')}
         />
       </nav>
 
@@ -183,12 +170,6 @@ export function Sidebar({
           active={false}
           onClick={onToggleWidget}
         />
-        <NavItem
-          icon={<GearSixIcon />}
-          label="Настройки"
-          active={view === 'settings'}
-          onClick={() => onNavigate('settings')}
-        />
       </div>
     </aside>
   )
@@ -224,7 +205,7 @@ function NavItem({
         <motion.span
           layoutId="sidebar-active"
           transition={T_LAYOUT}
-          className="sink absolute inset-0 rounded-full bg-accent-dim"
+          className="absolute inset-0 rounded-full bg-accent-dim"
         />
       )}
       <span className={`relative ${active ? 'text-accent' : 'text-fg-2'}`}>{icon}</span>
@@ -311,7 +292,7 @@ function CategoryRow({
               <motion.span
                 layoutId="sidebar-active"
                 transition={T_LAYOUT}
-                className="sink absolute inset-0 rounded-full bg-accent-dim"
+                className="absolute inset-0 rounded-full bg-accent-dim"
               />
             )}
             <span className="relative min-w-0 flex-1 truncate">{category.name}</span>

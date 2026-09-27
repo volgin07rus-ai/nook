@@ -24,8 +24,20 @@ object NookData {
     /** Совпадает с defaultSettings() в приложении. */
     private const val DEFAULT_OPACITY = 0.35f
 
-    /** Задача в том виде, в каком её показывает виджет. */
-    data class Item(val title: String, val meta: String, val overdue: Boolean)
+    /**
+     * Задача в том виде, в каком её показывает виджет.
+     *
+     * color — цвет её категории, уже переведённый в понятный Android вид, или
+     * null у задач без категории. Кружок в строке красится именно им: на
+     * экране одновременно висят «работа» и «личное», и по цвету видно, что из
+     * этого что, не читая подписи.
+     */
+    data class Item(
+        val title: String,
+        val meta: String,
+        val overdue: Boolean,
+        val color: Int?,
+    )
 
     /**
      * Всё, что виджет берёт из файла за одно чтение.
@@ -72,6 +84,8 @@ object NookData {
 
         val tasks = data.optJSONArray("tasks") ?: return Snapshot(emptyList(), opacity)
         val today = todayKey()
+        val palette = categoryColors(data)
+        val names = categoryNames(data)
 
         val items = ArrayList<Item>()
         for (i in 0 until tasks.length()) {
@@ -83,8 +97,16 @@ object NookData {
 
             val due = task.optString("due", "").takeIf { it.isNotEmpty() && it != "null" }
             val overdue = due != null && due < today
+            val categoryId = task.optString("categoryId", "").takeIf { it.isNotEmpty() && it != "null" }
 
-            items.add(Item(title = title, meta = dueLabel(due, today), overdue = overdue))
+            items.add(
+                Item(
+                    title = title,
+                    meta = metaLine(dueLabel(due, today), names[categoryId]),
+                    overdue = overdue,
+                    color = palette[categoryId],
+                ),
+            )
         }
 
         // Тот же порядок, что в приложении при сортировке «сначала срочные»:
@@ -92,6 +114,148 @@ object NookData {
         items.sortWith(compareBy({ !it.overdue }, { it.meta.isEmpty() }))
         return Snapshot(if (items.size > limit) items.subList(0, limit) else items, opacity)
     }
+
+    /** Срок и категория в одной строке под названием. */
+    private fun metaLine(due: String, category: String?): String = when {
+        due.isEmpty() -> category ?: ""
+        category == null -> due
+        else -> "$due · $category"
+    }
+
+    /** id категории → её цвет. Разбирается один раз на чтение, не на строку. */
+    private fun categoryColors(data: JSONObject): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        val categories = data.optJSONArray("categories") ?: return out
+        for (i in 0 until categories.length()) {
+            val c = categories.optJSONObject(i) ?: continue
+            val id = c.optString("id", "")
+            if (id.isEmpty()) continue
+            NookColor.parse(c.optString("color", ""))?.let { out[id] = it }
+        }
+        return out
+    }
+
+    private fun categoryNames(data: JSONObject): Map<String, String> {
+        val out = HashMap<String, String>()
+        val categories = data.optJSONArray("categories") ?: return out
+        for (i in 0 until categories.length()) {
+            val c = categories.optJSONObject(i) ?: continue
+            val id = c.optString("id", "")
+            val name = c.optString("name", "").trim()
+            if (id.isNotEmpty() && name.isNotEmpty()) out[id] = name
+        }
+        return out
+    }
+
+    /**
+     * Клетка месяца в виджете-календаре.
+     *
+     * dots — цвета точек под числом, до трёх, по одной на категорию, как в
+     * календаре внутри приложения. Пустой список означает день без дел, и на
+     * этом держится главное свойство виджета: пустой месяц выглядит обычным
+     * календарём. null внутри списка — задача без категории: точка есть, но
+     * нейтрального цвета.
+     */
+    data class DayCell(
+        val day: Int,
+        val inMonth: Boolean,
+        val today: Boolean,
+        val weekend: Boolean,
+        val dots: List<Int?>,
+    )
+
+    /** «Сентябрь 2026» в шапке виджета. */
+    fun monthLabel(): String {
+        val now = Calendar.getInstance()
+        val month = MONTHS[now.get(Calendar.MONTH)].replaceFirstChar { it.uppercase() }
+        return "$month ${now.get(Calendar.YEAR)}"
+    }
+
+    /**
+     * Сорок две клетки текущего месяца, начиная с понедельника.
+     *
+     * Всегда шесть недель, а не сколько придётся: сетка переменной высоты
+     * прыгала бы при каждой смене месяца, а виджету размер задан один раз.
+     */
+    fun monthCells(context: Context): List<DayCell> {
+        val marks = dayMarks(context)
+
+        val now = Calendar.getInstance()
+        val month = now.get(Calendar.MONTH)
+        val year = now.get(Calendar.YEAR)
+        val today = todayKey()
+
+        val first = Calendar.getInstance().apply {
+            set(year, month, 1, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        // DAY_OF_WEEK: 1 — воскресенье. Сдвигаем к понедельнику.
+        val lead = (first.get(Calendar.DAY_OF_WEEK) + 5) % 7
+
+        val out = ArrayList<DayCell>(42)
+        for (i in 0 until 42) {
+            val c = first.clone() as Calendar
+            c.add(Calendar.DAY_OF_MONTH, i - lead)
+            val key = "%04d-%02d-%02d".format(
+                c.get(Calendar.YEAR),
+                c.get(Calendar.MONTH) + 1,
+                c.get(Calendar.DAY_OF_MONTH),
+            )
+            val weekday = c.get(Calendar.DAY_OF_WEEK)
+            out.add(
+                DayCell(
+                    day = c.get(Calendar.DAY_OF_MONTH),
+                    inMonth = c.get(Calendar.MONTH) == month && c.get(Calendar.YEAR) == year,
+                    today = key == today,
+                    weekend = weekday == Calendar.SATURDAY || weekday == Calendar.SUNDAY,
+                    dots = marks[key] ?: emptyList(),
+                ),
+            )
+        }
+        return out
+    }
+
+    /**
+     * День → цвета точек. Один проход по задачам вместо прохода на клетку.
+     *
+     * На день не больше трёх точек и не больше одной на цвет: пять задач по
+     * работе — это одна рабочая точка, а не пять одинаковых. null в списке —
+     * задача без категории, нейтральная точка.
+     */
+    private fun dayMarks(context: Context): Map<String, List<Int?>> {
+        val file = storeFile(context) ?: return emptyMap()
+        val data = try {
+            JSONObject(file.readText()).optJSONObject(KEY)
+        } catch (e: Exception) {
+            Log.w(TAG, "не удалось прочитать $FILE: ${e.message}")
+            null
+        } ?: return emptyMap()
+
+        val tasks = data.optJSONArray("tasks") ?: return emptyMap()
+        val palette = categoryColors(data)
+
+        val out = HashMap<String, MutableList<Int?>>()
+        for (i in 0 until tasks.length()) {
+            val task = tasks.optJSONObject(i) ?: continue
+            if (task.optBoolean("done", false)) continue
+            val due = task.optString("due", "")
+            if (due.length != 10 || due == "null") continue
+
+            val categoryId = task.optString("categoryId", "")
+                .takeIf { it.isNotEmpty() && it != "null" }
+            val color = palette[categoryId]
+
+            val dots = out.getOrPut(due) { ArrayList(3) }
+            if (dots.size >= 3 || dots.contains(color)) continue
+            dots.add(color)
+        }
+        return out
+    }
+
+    private val MONTHS = arrayOf(
+        "январь", "февраль", "март", "апрель", "май", "июнь",
+        "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+    )
 
     /** Напоминание, которое надо поставить на будильник. */
     data class Reminder(val id: String, val title: String, val at: Long)

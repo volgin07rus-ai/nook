@@ -34,12 +34,28 @@ import { Toast } from './components/Toast'
 import { Select } from './components/Select'
 import { NotepadView } from './components/NotepadView'
 import { FilmsView } from './components/FilmsView'
+import { CalendarView } from './components/CalendarView'
+import { HabitsView } from './components/HabitsView'
+import { PulseCard } from './components/PulseCard'
 import { PhoneApp } from './components/PhoneApp'
+import { imagesIn, pruneImages } from './lib/images'
+import { syncIfConfigured } from './lib/sync'
+import { startAutoSync } from './lib/autosync'
 import { IS_PHONE } from './lib/platform'
-import { MagnifyingGlassIcon, SortAscendingIcon } from './components/icons'
+import { Dock, type DockItem } from './components/Dock'
+import {
+  CalendarDotsIcon,
+  FilmSlateIcon,
+  GearSixIcon,
+  MagnifyingGlassIcon,
+  NotePencilIcon,
+  SortAscendingIcon,
+  TargetIcon,
+  TrayIcon,
+} from './components/icons'
 
 /** 'stats' is a phone tab. On the desktop the statistics are always on screen. */
-export type View = 'tasks' | 'settings' | 'notepad' | 'films' | 'stats'
+export type View = 'tasks' | 'habits' | 'settings' | 'notepad' | 'films' | 'calendar' | 'stats'
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: 'smart', label: 'Сначала срочные' },
@@ -81,8 +97,24 @@ export default function App() {
       // One dated copy per launch. The app holds the only copy of the data,
       // so a bad write should not be able to take everything with it.
       await makeBackup(todayKey())
+      // Файлы, на которые больше не ссылается ни одна записка, здесь и
+      // прибираются: удалённая из текста картинка иначе осталась бы на диске
+      // навсегда. Источник правды — сами записки, отдельного учёта нет.
+      await pruneImages(data.notes.flatMap((note) => imagesIn(note.body)))
+      // Обмен с репозиторием при запуске: приложение открывают, чтобы
+      // посмотреть, что там — значит первым делом надо забрать чужие правки.
+      await syncIfConfigured()
     })()
   }, [ready, data.settings.widgetMode, data.settings.widgetOnLaunch, data.settings.quickShortcut])
+
+  /*
+   * Дальше обмен идёт сам: правки уезжают через несколько секунд, чужие
+   * приезжают по опросу раз в минуту и при уходе с экрана и возвращении.
+   *
+   * visibilitychange, а не закрытие окна: на телефоне окно не закрывают, его
+   * сворачивают, и это единственное событие, которое туда вообще приходит.
+   */
+  useEffect(() => startAutoSync(), [])
 
   // Ctrl+Z anywhere, as long as the user is not typing into a field.
   useEffect(() => {
@@ -165,132 +197,189 @@ export default function App() {
               setView('tasks')
             }}
             view={view}
-            onNavigate={setView}
             onToggleWidget={() => void handleToggleWidget()}
             widgetVisible={widgetVisible}
           />
 
-          {/* Deliberately not wrapped in AnimatePresence: a view swap is a
-           * state change and must not wait on an exit animation to finish. The
-           * outgoing view unmounts at once, the incoming one fades in. */}
-          {view === 'settings' ? (
-            <motion.div key="settings" {...viewMotion} className="flex min-w-0 flex-1">
-              <SettingsView data={data} />
-            </motion.div>
-          ) : view === 'notepad' ? (
-            <motion.div key="notepad" {...viewMotion} className="flex min-w-0 flex-1">
-              <NotepadView notes={data.notes} />
-            </motion.div>
-          ) : view === 'films' ? (
-            <motion.div key="films" {...viewMotion} className="flex min-w-0 flex-1">
-              <FilmsView films={data.films} notes={data.notes} />
-            </motion.div>
-          ) : (
-            <motion.div key="tasks" {...viewMotion} className="flex min-w-0 flex-1">
-                <main className="flex min-w-0 flex-1 flex-col pb-4">
-                <div className="flex items-end gap-3 px-5 pt-2 pb-4">
-                  <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-xl font-semibold text-fg">
-                      {filterTitle(filter, data.categories)}
-                    </h1>
-                    <p className="mt-0.5 text-sm text-fg-3">
-                      {openCount === 0
-                        ? 'активных задач нет'
-                        : `${openCount} ${plural(openCount, 'активная задача', 'активные задачи', 'активных задач')}`}
-                    </p>
-                  </div>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1">
+              {/* Deliberately not wrapped in AnimatePresence: a view swap is a
+               * state change and must not wait on an exit animation to finish. The
+               * outgoing view unmounts at once, the incoming one fades in. */}
+              {view === 'settings' ? (
+                <motion.div key="settings" {...viewMotion} className="flex min-w-0 flex-1">
+                  <SettingsView data={data} />
+                </motion.div>
+              ) : view === 'notepad' ? (
+                <motion.div key="notepad" {...viewMotion} className="flex min-w-0 flex-1">
+                  <NotepadView notes={data.notes} />
+                </motion.div>
+              ) : view === 'films' ? (
+                <motion.div key="films" {...viewMotion} className="flex min-w-0 flex-1">
+                  <FilmsView films={data.films} notes={data.notes} />
+                </motion.div>
+              ) : view === 'calendar' ? (
+                <motion.div key="calendar" {...viewMotion} className="flex min-w-0 flex-1">
+                  <CalendarView tasks={data.tasks} categories={data.categories} />
+                </motion.div>
+              ) : view === 'habits' ? (
+                <motion.div key="habits" {...viewMotion} className="flex min-w-0 flex-1">
+                  <HabitsView habits={data.habits} />
+                </motion.div>
+              ) : view === 'stats' ? (
+                /* На узком окне колонка обзора спрятана, и сюда ведёт карточка
+                   результата над списком. На широком она не нужна. */
+                <motion.div key="stats" {...viewMotion} className="flex min-w-0 flex-1">
+                  <StatsPanel tasks={data.tasks} categories={data.categories} habits={data.habits} phone />
+                </motion.div>
+              ) : (
+                <motion.div key="tasks" {...viewMotion} className="flex min-w-0 flex-1">
+                    <main className="flex min-w-0 flex-1 flex-col pb-4">
+                    <div className="flex items-end gap-3 px-5 pt-2 pb-4">
+                      <div className="min-w-0 flex-1">
+                        <h1 className="truncate text-xl font-semibold text-fg">
+                          {filterTitle(filter, data.categories)}
+                        </h1>
+                        <p className="mt-0.5 text-sm text-fg-3">
+                          {openCount === 0
+                            ? 'активных задач нет'
+                            : `${openCount} ${plural(openCount, 'активная задача', 'активные задачи', 'активных задач')}`}
+                        </p>
+                      </div>
 
-                  <div className="field flex w-44 items-center gap-2 px-3 py-2">
-                    <MagnifyingGlassIcon size={14} className="shrink-0 text-fg-2" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Поиск"
-                      aria-label="Поиск по задачам"
-                      className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
-                    />
-                  </div>
+                      <div className="field flex w-44 items-center gap-2 px-3 py-2">
+                        <MagnifyingGlassIcon size={14} className="shrink-0 text-fg-2" />
+                        <input
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          placeholder="Поиск"
+                          aria-label="Поиск по задачам"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
+                        />
+                      </div>
 
-                  <Select
-                    label="Сортировка"
-                    value={sort}
-                    onChange={(v) => setSort(v as SortMode)}
-                    options={SORT_OPTIONS}
-                    icon={<SortAscendingIcon size={14} className="shrink-0 text-fg-2" />}
-                    className="w-48 shrink-0"
-                  />
-                </div>
-
-                <div className="px-5 pb-4">
-                  <TaskComposer
-                    categories={data.categories}
-                    defaultCategoryId={
-                      filter.kind === 'category' ? (filter.categoryId ?? null) : null
-                    }
-                    defaultDue={filter.kind === 'today' ? todayKey() : null}
-                  />
-                </div>
-
-                <div className="scroll-y min-h-0 flex-1 px-5">
-                  {!ready ? (
-                    <TaskSkeleton />
-                  ) : visible.length === 0 ? (
-                    <EmptyState query={query} filter={filter} />
-                  ) : (
-                    <div className="flex flex-col gap-5">
-                      {groups.map((group) => (
-                        <section key={group.key}>
-                          {group.title && (
-                            <h2 className="mb-2 flex items-baseline gap-2 px-1 text-xs font-medium tracking-[0.09em] text-fg-3 uppercase">
-                              {group.title}
-                              {/* No opacity here: it would drag the muted
-                                  token below the 4.5:1 floor. */}
-                              <span className="tnum">{group.tasks.length}</span>
-                            </h2>
-                          )}
-                          {sort === 'manual' ? (
-                            <Reorder.Group
-                              axis="y"
-                              values={group.tasks}
-                              onReorder={(next) => reorderVisibleTasks(next.map((t) => t.id))}
-                              className="card divide-y divide-line-soft overflow-hidden"
-                            >
-                              {group.tasks.map((task) => (
-                                <TaskItem
-                                  key={task.id}
-                                  task={task}
-                                  categories={data.categories}
-                                  draggable
-                                />
-                              ))}
-                            </Reorder.Group>
-                          ) : (
-                            <ul className="card divide-y divide-line-soft overflow-hidden">
-                              <AnimatePresence initial={false}>
-                                {group.tasks.map((task) => (
-                                  <TaskItem key={task.id} task={task} categories={data.categories} />
-                                ))}
-                              </AnimatePresence>
-                            </ul>
-                          )}
-                        </section>
-                      ))}
+                      <Select
+                        label="Сортировка"
+                        value={sort}
+                        onChange={(v) => setSort(v as SortMode)}
+                        options={SORT_OPTIONS}
+                        icon={<SortAscendingIcon size={14} className="shrink-0 text-fg-2" />}
+                        className="w-48 shrink-0"
+                      />
                     </div>
-                  )}
-                </div>
-                </main>
 
-                <div className="hidden min-[1140px]:flex">
-                  <StatsPanel tasks={data.tasks} categories={data.categories} />
-                </div>
-            </motion.div>
-          )}
+                    {/* Пока колонка обзора не влезает, результат дня стоит здесь. */}
+                    <div className="px-5 pb-3 min-[1140px]:hidden">
+                      <PulseCard tasks={data.tasks} habits={data.habits} onOpen={() => setView('stats')} />
+                    </div>
+
+                    <div className="px-5 pb-4">
+                      <TaskComposer
+                        categories={data.categories}
+                        defaultCategoryId={
+                          filter.kind === 'category' ? (filter.categoryId ?? null) : null
+                        }
+                        defaultDue={filter.kind === 'today' ? todayKey() : null}
+                      />
+                    </div>
+
+                    <div className="scroll-y min-h-0 flex-1 px-5">
+                      {!ready ? (
+                        <TaskSkeleton />
+                      ) : visible.length === 0 ? (
+                        <EmptyState query={query} filter={filter} />
+                      ) : (
+                        <div className="flex flex-col gap-5">
+                          {groups.map((group) => (
+                            <section key={group.key}>
+                              {group.title && (
+                                <h2 className="mb-2 flex items-baseline gap-2 px-1 text-xs font-medium tracking-[0.09em] text-fg-3 uppercase">
+                                  {group.title}
+                                  {/* No opacity here: it would drag the muted
+                                      token below the 4.5:1 floor. */}
+                                  <span className="tnum">{group.tasks.length}</span>
+                                </h2>
+                              )}
+                              {sort === 'manual' ? (
+                                <Reorder.Group
+                                  axis="y"
+                                  values={group.tasks}
+                                  onReorder={(next) => reorderVisibleTasks(next.map((t) => t.id))}
+                                  className="card divide-y divide-line-soft overflow-hidden"
+                                >
+                                  {group.tasks.map((task) => (
+                                    <TaskItem
+                                      key={task.id}
+                                      task={task}
+                                      categories={data.categories}
+                                      draggable
+                                    />
+                                  ))}
+                                </Reorder.Group>
+                              ) : (
+                                <ul className="card divide-y divide-line-soft overflow-hidden">
+                                  <AnimatePresence initial={false}>
+                                    {group.tasks.map((task) => (
+                                      <TaskItem key={task.id} task={task} categories={data.categories} />
+                                    ))}
+                                  </AnimatePresence>
+                                </ul>
+                              )}
+                            </section>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    </main>
+
+                    <div className="hidden min-[1140px]:flex">
+                      <StatsPanel tasks={data.tasks} categories={data.categories} habits={data.habits} />
+                    </div>
+                </motion.div>
+              )}
+            </div>
+
+            <DesktopDock
+              view={view}
+              onNavigate={setView}
+              overdue={data.tasks.filter((t) => matchesFilter(t, { kind: 'overdue' })).length}
+            />
+          </div>
         </div>
 
         <Toast />
       </div>
     </div>
   )
+}
+
+/**
+ * Разделы на компьютере — то же нижнее меню, что на телефоне.
+ *
+ * Здесь места хватает на все шесть сразу, поэтому «Ещё» не нужно. Обзора среди
+ * них нет: на широком окне статистика и так стоит справа от задач. Фильтры и
+ * категории остаются в боковой панели — это не разделы, а виды одного списка.
+ * Порядок тот же, что на телефоне, чтобы рука не переучивалась.
+ */
+function DesktopDock({
+  view,
+  onNavigate,
+  overdue,
+}: {
+  view: View
+  onNavigate: (view: View) => void
+  overdue: number
+}) {
+  const items: DockItem[] = [
+    { id: 'tasks', label: 'Задачи', Icon: TrayIcon, alert: overdue > 0, onPress: () => onNavigate('tasks') },
+    { id: 'habits', label: 'Привычки', Icon: TargetIcon, onPress: () => onNavigate('habits') },
+    { id: 'films', label: 'Фильмы', Icon: FilmSlateIcon, onPress: () => onNavigate('films') },
+    { id: 'notepad', label: 'Блокнот', Icon: NotePencilIcon, onPress: () => onNavigate('notepad') },
+    { id: 'calendar', label: 'Календарь', Icon: CalendarDotsIcon, onPress: () => onNavigate('calendar') },
+    { id: 'settings', label: 'Настройки', Icon: GearSixIcon, onPress: () => onNavigate('settings') },
+  ]
+
+  return <Dock items={items} active={items.findIndex((item) => item.id === view)} />
 }
 
 /** Skeleton matches the row geometry so nothing jumps when data arrives. */

@@ -1,12 +1,14 @@
 import { useMemo } from 'react'
-import type { Category, Task } from '../types'
+import type { Category, Habit, Task } from '../types'
 import { computeStats } from '../lib/stats'
+import { pct, summarize } from '../lib/habits'
 import { plural } from '../lib/date'
 import { ProgressRing } from './ProgressRing'
 
 interface StatsPanelProps {
   tasks: Task[]
   categories: Category[]
+  habits: Habit[]
   /** Own tab on a phone: full width instead of a fixed side column. */
   phone?: boolean
 }
@@ -15,8 +17,9 @@ interface StatsPanelProps {
  * Sibling tiles on the canvas, never tiles inside a tile: a card within a card
  * is always wrong. Inside each tile, grouping is hairlines and space.
  */
-export function StatsPanel({ tasks, categories, phone = false }: StatsPanelProps) {
+export function StatsPanel({ tasks, categories, habits, phone = false }: StatsPanelProps) {
   const stats = useMemo(() => computeStats(tasks), [tasks])
+  const routine = useMemo(() => summarize(habits), [habits])
 
   const byCategory = useMemo(
     () =>
@@ -96,6 +99,46 @@ export function StatsPanel({ tasks, categories, phone = false }: StatsPanelProps
             ))}
           </div>
         </section>
+
+        {routine.total > 0 && (
+          <section className="card px-6 py-5">
+            <Eyebrow>Привычки</Eyebrow>
+            <p className="mt-3 flex items-baseline gap-1.5">
+              <span className="tnum text-lg leading-none font-semibold text-fg">
+                {routine.doneToday}/{routine.total}
+              </span>
+              <span className="text-xs text-fg-3">сегодня</span>
+            </p>
+            <p className="tnum mt-1 text-xs text-fg-3">
+              {routine.weekRate}% за неделю · {routine.streak}{' '}
+              {plural(routine.streak, 'день', 'дня', 'дней')} подряд
+            </p>
+            <div className="mt-4 flex h-12 items-end gap-1.5">
+              {routine.week.map((day) => {
+                const value = pct(day.done, day.total)
+                return (
+                  <div key={day.key} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                    <div className="flex h-8 w-full items-end">
+                      <div
+                        className="w-full rounded-sm"
+                        title={`${day.key}: ${day.done} из ${day.total}`}
+                        style={{
+                          height: `${value === 0 ? 8 : Math.max(14, value)}%`,
+                          background: value === 0 ? 'var(--color-line)' : 'var(--color-accent)',
+                          opacity: value === 0 || day.isToday ? 1 : 0.45,
+                          transition: 'height 220ms var(--ease-out-quart)',
+                        }}
+                      />
+                    </div>
+                    <span className={`text-xs ${day.isToday ? 'text-fg-2' : 'text-fg-3'}`}>
+                      {day.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {byCategory.length > 0 && (
           <section className="card px-6 py-5">

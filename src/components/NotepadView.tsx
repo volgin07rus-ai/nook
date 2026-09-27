@@ -5,12 +5,15 @@ import type { Note } from '../types'
 import { noteTitle } from '../types'
 import { addNote, deleteNote, setNoteBody, setNoteTitle, updateSettings, useStore } from '../lib/store'
 import { htmlToText, sanitize } from '../lib/richtext'
+import { hydrate, imageUrl, saveImage } from '../lib/images'
 import { formatPast, plural } from '../lib/date'
+import { showToast } from '../lib/toast'
 import { rowMotion, T_FAST, T_LAYOUT } from '../lib/motion'
 import { useKeyboard } from '../lib/useKeyboard'
 import {
   CaretLeftIcon,
   ListBulletsIcon,
+  ImageIcon,
   ListChecksIcon,
   MinusIcon,
   PlusIcon,
@@ -162,7 +165,10 @@ function NoteRow({
         type="button"
         onClick={onSelect}
         aria-current={active ? 'true' : undefined}
-        className={`flex w-full flex-col gap-0.5 border-b border-line-soft px-4 py-3 text-left transition-colors duration-150 ${
+        /* pr-11, а не px-4: справа стоит кнопка удаления, и длинное название
+           заезжало прямо под неё. На телефоне кнопка видна всегда, так что
+           место под неё резервируется постоянно — иначе строка прыгала бы. */
+        className={`flex w-full flex-col gap-0.5 border-b border-line-soft py-3 pr-11 pl-4 text-left transition-colors duration-150 ${
           active ? 'bg-accent-dim' : 'hover:bg-raised'
         }`}
       >
@@ -238,7 +244,15 @@ function NoteEditor({
    * keyed by note id so switching notes remounts it.
    */
   useEffect(() => {
-    if (areaRef.current) areaRef.current.innerHTML = note.body
+    let alive = true
+    // Разметка приходит с именами файлов вместо адресов; настоящие адреса
+    // подставляются здесь, только для показа. См. lib/images.ts.
+    void hydrate(note.body).then((html) => {
+      if (alive && areaRef.current) areaRef.current.innerHTML = html
+    })
+    return () => {
+      alive = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -247,9 +261,16 @@ function NoteEditor({
     if (note.body !== saved.current && !timer.current) {
       saved.current = note.body
       latest.current = note.body
-      if (areaRef.current) areaRef.current.innerHTML = note.body
-      setWords(countWords(note.body))
-      setEmpty(!htmlToText(note.body).trim())
+      const incoming = note.body
+      void hydrate(incoming).then((html) => {
+        // Пока ходили за адресами, человек мог начать печатать — тогда
+        // подставлять чужую разметку уже нельзя.
+        if (saved.current === incoming && !timer.current && areaRef.current) {
+          areaRef.current.innerHTML = html
+        }
+      })
+      setWords(countWords(incoming))
+      setEmpty(!htmlToText(incoming).trim())
     }
   }, [note.body])
 
@@ -354,6 +375,30 @@ function NoteEditor({
     fn()
     onChange()
     setMarks(readMarks(root))
+  }
+
+  /**
+   * Вставка фотографии.
+   *
+   * Через обычное поле выбора файла, а не через системный диалог tauri: на
+   * телефоне это открывает галерею и камеру, на компьютере — проводник, и
+   * одинаково работает в обоих вебвью без отдельной ветки на платформу.
+   */
+  const insertImage = async (file: File) => {
+    try {
+      const name = await saveImage(file)
+      const url = await imageUrl(name)
+      if (!url) return
+      run(() => {
+        document.execCommand(
+          'insertHTML',
+          false,
+          `<img data-nook="${name}" src="${url}" alt="">`,
+        )
+      })
+    } catch (error) {
+      showToast(`Не удалось добавить фото: ${String(error)}`)
+    }
   }
 
   const toggle = (command: 'bold' | 'italic' | 'underline' | 'strikeThrough') =>
@@ -508,6 +553,7 @@ function NoteEditor({
           onToggle={toggle}
           onSize={setSize}
           onList={makeList}
+          onImage={insertImage}
           spacing={spacing}
           onSpacing={onSpacing}
         />
@@ -675,6 +721,7 @@ function Toolbar({
   onToggle,
   onSize,
   onList,
+  onImage,
   spacing,
   onSpacing,
 }: {
@@ -682,6 +729,7 @@ function Toolbar({
   onToggle: (command: 'bold' | 'italic' | 'underline' | 'strikeThrough') => void
   onSize: (px: number) => void
   onList: (kind: 'bullet' | 'todo') => void
+  onImage: (file: File) => void
   spacing: Spacing
   onSpacing: (next: Partial<Spacing>) => void
 }) {
@@ -743,9 +791,46 @@ function Toolbar({
 
       <Divider />
 
+      <PhotoButton onPick={onImage} />
+
       {/* Spacing stays behind a button: set once, then left alone. */}
       <AppearanceMenu spacing={spacing} onSpacing={onSpacing} />
     </div>
+  )
+}
+
+/**
+ * Кнопка «фото».
+ *
+ * Внутри — обычное поле выбора файла, спрятанное под клавишу панели. На
+ * телефоне такое поле открывает галерею и камеру, на компьютере проводник,
+ * и делает это средствами системы: ни отдельного диалога, ни отдельной
+ * ветки на платформу.
+ */
+function PhotoButton({ onPick }: { onPick: (file: File) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      <Tool label="Фото" active={false} onPress={() => inputRef.current?.click()}>
+        <ImageIcon size={18} />
+      </Tool>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          // Поле обнуляется, иначе выбор того же снимка второй раз подряд
+          // не вызовет события вовсе.
+          event.target.value = ''
+          if (file) onPick(file)
+        }}
+      />
+    </>
   )
 }
 
@@ -951,10 +1036,10 @@ function Tool({
       onPointerDown={(e) => e.preventDefault()}
       onClick={onPress}
       /* 44px, not 36: the smaller size was a reliable miss under a thumb.
-       * Каждая кнопка — отдельная клавиша с собственной подложкой и рельефом;
-       * включённая утоплена (правило .raise[aria-pressed='true']). */
-      className={`focus-ring press raise grid h-11 w-11 shrink-0 place-items-center rounded-lg transition-[box-shadow,background-color,color] duration-150 disabled:opacity-40 disabled:shadow-none ${
-        active ? 'bg-accent-dim text-fg' : 'bg-panel text-fg-2 hover:text-fg'
+       * Каждая кнопка — отдельная клавиша с собственной подложкой; включённая
+       * заливается приглушённым акцентом. */
+      className={`focus-ring press grid h-11 w-11 shrink-0 place-items-center rounded-lg transition-colors duration-150 disabled:opacity-40 ${
+        active ? 'bg-accent-dim text-fg' : 'bg-fill text-fg-2 hover:bg-fill-hover hover:text-fg'
       }`}
     >
       {children}

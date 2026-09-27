@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Кружок под сегодняшним числом в виджете-календаре: цвет текста, а число
+     на нём — цветом подложки. Инверсия читается с любого расстояния и не
+     требует акцентного цвета, которого виджет не знает. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/nook_widget_fg" />
+    <size android:width="22dp" android:height="22dp" />
+</shape>

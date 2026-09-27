@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Расписание на сегодня. updatePeriodMillis на нуле по той же причине, что и у
+  остальных виджетов: приложение толкает обновление само, по факту записи в
+  файл данных, а не по таймеру системы.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="3"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/nook_calendar_widget"
+    android:description="@string/nook_calendar_description" />
